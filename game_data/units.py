@@ -12,6 +12,21 @@ class UnitManager(list):
     def __init__(self, units):
         super().__init__(units)
 
+    def values(self, *args, flat_list=False):
+        """ Get tuples of values of the units inside the UnitManager.
+                Can get a flat list of values in case it's one attribute and flat_list is set to True
+
+        :param args:        <list>   Attributes specified to obtain from the UnitManager's units
+        :param flat_list:   <bool>   Flag to get a flat list of attributes in case only one attribute is specified
+
+        :return:            <list>   List of tuples with the attributes specified in the args / List of values in case
+                                        on attribute specified and flat_list set to True
+        """
+        if flat_list and len(args) == 1:
+            return [unit.get_attribute(args[0]) for unit in self]
+        else:
+            return [(unit.get_attribute(arg) for arg in args) for unit in self]
+
     def filter(self, mode=AND_MODE, **kwargs):
         """ Return subgroup of UnitManager with the items matching the specified arguments for the selected mode
 
