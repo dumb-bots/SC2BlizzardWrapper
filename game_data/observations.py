@@ -6,7 +6,7 @@ from game_data.units import UnitManager, Unit
 class DecodedObservation:
     def __init__(self, observation, game_data):
         # Set player data
-        self.player_info = PlayerCommon(observation.player_common, observation.raw_data.player)
+        self.player_info = PlayerCommon(observation.player_common, observation.raw_data.player, game_data)
 
         # Set game units
         self.player_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units
@@ -41,7 +41,7 @@ def decode_observation(observation, game_data):
 
 
 class PlayerCommon:
-    def __init__(self, proto_player_common, proto_raw_player):
+    def __init__(self, proto_player_common, proto_raw_player, game_data):
         self.player_id = proto_player_common.player_id
         self.minerals = proto_player_common.minerals
         self.vespene = proto_player_common.vespene
@@ -56,7 +56,7 @@ class PlayerCommon:
         # Raw data
         self.power_sources = proto_raw_player.power_sources
         self.camera = proto_raw_player.camera
-        self.upgrade_ids = proto_raw_player.upgrade_ids
+        self.upgrades = [game_data.upgrades[upgrade] for upgrade in proto_raw_player.upgrade_ids]
 
     def to_dict(self):
         return {
