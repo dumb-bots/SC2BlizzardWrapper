@@ -12,6 +12,18 @@ class UnitManager(list):
     def __init__(self, units):
         super().__init__(units)
 
+    def give_order(self, ability_id, orders_dict, target_unit=None, target_point=None):
+        """ Assign units to perform an Ability (with a particular target or not)
+
+        :param ability_id:      <int>    Ability identifier
+        :param orders_dict:     <dict>   Orders dictionary from this game iteration, updated by reference
+        :param target_unit:     <int>    (Optional) Targeted unit identifier
+        :param target_point:    <tuple>  (Optional) 2D Point (x, y) with targeted coordinates for ability
+        :return:    No return value, orders_dict updated by reference
+        """
+        tuple_key = (ability_id, target_unit, target_point)
+        orders_dict.setdefault(tuple_key, []).extend(self.values("tag", flat_list=True))
+
     def values(self, *args, flat_list=False):
         """ Get tuples of values of the units inside the UnitManager.
                 Can get a flat list of values in case it's one attribute and flat_list is set to True
@@ -23,9 +35,9 @@ class UnitManager(list):
                                         on attribute specified and flat_list set to True
         """
         if flat_list and len(args) == 1:
-            return [unit.get_attribute(args[0]) for unit in self]
+            return [unit.get_values_attribute(args[0]) for unit in self]
         else:
-            return [(unit.get_attribute(arg) for arg in args) for unit in self]
+            return [tuple(unit.get_values_attribute(arg) for arg in args) for unit in self]
 
     def filter(self, mode=AND_MODE, **kwargs):
         """ Return subgroup of UnitManager with the items matching the specified arguments for the selected mode
@@ -79,6 +91,9 @@ class UnitManager(list):
                             # If op attribute is "int" consider the list as a list of ints (for `attributes` list)
                             if op == "int":
                                 evaluation = value in unit_value
+
+                            elif op == "attlength":
+                                evaluation = len(unit_value) == value
 
                             # If internal attribute is a list of objects, check if any matches the given condition
                             elif isinstance(unit_value, collections.Iterable):
@@ -162,6 +177,17 @@ class Unit:
 
     def __repr__(self):
         return "<Unit {} {}>".format(self.name, self.tag)
+
+    def get_values_attribute(self, attribute):
+        if "__" not in attribute:
+            return self.get_attribute(attribute)
+        else:
+            attribute_elements = attribute.split("__")
+            unit_attribute = self.get_attribute(attribute_elements[0])
+            if isinstance(unit_attribute, collections.Iterable):
+                return [elem.__getattribute__(attribute_elements[1]) for elem in unit_attribute]
+            else:
+                return unit_attribute.__getattribute__(attribute_elements[1])
 
     def get_attribute(self, attribute):
         try:
