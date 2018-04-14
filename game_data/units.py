@@ -1,4 +1,5 @@
 import collections
+from functools import reduce
 
 
 class UnitManager(list):
@@ -61,9 +62,49 @@ class UnitManager(list):
         :return:        <UnitManager> UnitManager with the subroup of selected units
         """
 
-        valid = mode in [UnitManager.AND_MODE, UnitManager.OR_MODE]
-        and_mode = mode in [UnitManager.AND_MODE, UnitManager.EXCLUDE_AND_MODE]
-        or_mode = mode in [UnitManager.OR_MODE, UnitManager.EXCLUDE_OR_MODE]
+        def evaluate_attribute(unit, attribute, value):
+
+            # Argument with operator
+            if "__" in attribute:
+                att_split = attribute.split("__")
+                attribute, op = att_split[0], att_split[1]
+
+                # In operator
+                if op == "in":
+                    unit_value = unit.get_attribute(attribute)
+                    evaluation = unit_value in value
+
+                # Composed attribute filter
+                else:
+                    unit_value = unit.get_attribute(attribute)
+                    # If op attribute is "int" consider the list as a list of ints (for `attributes` list)
+                    if op == "int":
+                        evaluation = value in unit_value
+
+                    elif op == "attlength":
+                        evaluation = len(unit_value) == value
+
+                    # If internal attribute is a list of objects, check if any matches the given condition
+                    elif isinstance(unit_value, collections.Iterable):
+                        try:
+                            evaluation = list(filter(lambda obj: obj.__getattribute__(op) == value, unit_value))
+                        except AttributeError:
+                            evaluation = False
+
+                    # If internal attribute is an object, check if it matches the given condition
+                    else:
+                        try:
+                            evaluation = unit_value.__getattribute__(op) == value
+                        except AttributeError:
+                            evaluation = False
+
+                # Return statement depending on mode
+                return evaluation
+
+            # Standard attribute filter
+            else:
+                unit_value = unit.get_attribute(attribute)
+                return unit_value == value
 
         def filter_func(unit):
             """ Filter function with the given **kwargs according to specified mode
@@ -73,60 +114,23 @@ class UnitManager(list):
             """
 
             try:
-                for attribute, value in kwargs.items():
+                and_func = lambda x, y: x and y
+                or_func = lambda x, y: x or y
 
-                    # Argument with operator
-                    if "__" in attribute:
-                        att_split = attribute.split("__")
-                        attribute, op = att_split[0], att_split[1]
-
-                        # In operator
-                        if op == "in":
-                            unit_value = unit.get_attribute(attribute)
-                            evaluation = unit_value in value
-
-                        # Composed attribute filter
-                        else:
-                            unit_value = unit.get_attribute(attribute)
-                            # If op attribute is "int" consider the list as a list of ints (for `attributes` list)
-                            if op == "int":
-                                evaluation = value in unit_value
-
-                            elif op == "attlength":
-                                evaluation = len(unit_value) == value
-
-                            # If internal attribute is a list of objects, check if any matches the given condition
-                            elif isinstance(unit_value, collections.Iterable):
-                                try:
-                                    evaluation = list(filter(lambda obj: obj.__getattribute__(op) == value, unit_value))
-                                except AttributeError:
-                                    evaluation = False
-
-                            # If internal attribute is an object, check if it matches the given condition
-                            else:
-                                try:
-                                    evaluation = unit_value.__getattribute__(op) == value
-                                except AttributeError:
-                                    evaluation = False
-
-                        # Return statement depending on mode
-                        if (not evaluation) and and_mode:
-                            return not valid
-                        elif evaluation and or_mode:
-                            return valid
-
-                    # Standard attribute filter
-                    else:
-                        unit_value = unit.get_attribute(attribute)
-
-                        # Return statement depending on mode
-                        if (unit_value != value) and and_mode:
-                            return not valid
-                        elif (unit_value == value) and or_mode:
-                            return valid
-
-                # Return value according to mode
-                return valid if and_mode else not valid
+                if mode == UnitManager.AND_MODE:
+                    return reduce(and_func, [evaluate_attribute(unit, attribute, value)
+                                             for attribute, value in kwargs.items()])
+                elif mode == UnitManager.OR_MODE:
+                    func = lambda x, y: x or y
+                    return reduce(or_func, [evaluate_attribute(unit, attribute, value)
+                                            for attribute, value in kwargs.items()])
+                elif mode == UnitManager.EXCLUDE_OR_MODE:
+                    return reduce(and_func, [not(evaluate_attribute(unit, attribute, value))
+                                             for attribute, value in kwargs.items()])
+                elif mode == UnitManager.EXCLUDE_AND_MODE:
+                    return reduce(or_func, [not(evaluate_attribute(unit, attribute, value))
+                                            for attribute, value in kwargs.items()])
+                return False
             except AttributeError:
                 return False
 

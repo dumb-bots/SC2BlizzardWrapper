@@ -2,6 +2,7 @@ import json
 
 import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.sc2api_pb2 as api
+import time
 from websocket import create_connection
 
 from game_data.observations import decode_observation
@@ -48,6 +49,7 @@ game_data = data_response.data
 print(response.status)
 logs = {}
 
+start_time = time.time()
 while response.status == 3:
     request_payload = api.Request(observation=api.RequestObservation())
     request_payload.observation.disable_fog = True
@@ -64,7 +66,7 @@ while response.status == 3:
     result = ws.recv()
     response = api.Response.FromString(result)
 
-
+print("Elapsed time {}s".format(time.time() - start_time))
 print("Game ended")
 print("Requesting replay from server")
 replay = api.Request(save_replay=api.RequestSaveReplay())
