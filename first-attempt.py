@@ -5,7 +5,7 @@ import s2clientprotocol.sc2api_pb2 as api
 import time
 from websocket import create_connection
 
-from game_data.observations import decode_observation
+from game_data.observations import decode_observation, UnitsProfile
 
 request_payload = api.Request()
 print(dir(request_payload))
@@ -58,7 +58,8 @@ while response.status == 3:
     info_response = api.Response.FromString(result)
 
     obj = decode_observation(info_response.observation.observation, game_data)
-    logs[obj.game_loop] = obj
+    units_profile = UnitsProfile(obj)
+    logs[obj.game_loop] = units_profile
 
     request_payload = api.Request()
     request_payload.step.count = 1000

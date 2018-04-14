@@ -71,3 +71,22 @@ class PlayerCommon:
             "army_count": self.army_count,
             "warp_gate_count": self.warp_gate_count,
         }
+
+
+class UnitsProfile:
+    def __init__(self, decoded_observation):
+        player_unit_count = {}
+        for unit in decoded_observation.player_units:
+            player_unit_count[unit.name] = player_unit_count.get(unit.name, 0) + 1
+        self.player_unit_count = player_unit_count
+
+        enemy_unit_count = {}
+        for unit in decoded_observation.enemy_units:
+            enemy_unit_count[unit.name] = enemy_unit_count.get(unit.name, 0) + 1
+        self.enemy_unit_count = enemy_unit_count
+
+    def to_dict(self):
+        return {
+            "player_unit_count": self.player_unit_count,
+            "enemy_unit_count": self.enemy_unit_count,
+        }
