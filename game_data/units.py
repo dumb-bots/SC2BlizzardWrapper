@@ -1,6 +1,8 @@
 import collections
 from functools import reduce
 
+from game_data.utils import euclidean_distance
+
 
 class UnitManager(list):
     """ Collection of Units with filtering and updating tools for contained units """
@@ -24,6 +26,18 @@ class UnitManager(list):
         """
         tuple_key = (ability_id, target_unit, target_point)
         orders_dict.setdefault(tuple_key, []).extend(self.values("tag", flat_list=True))
+
+    def add_calculated_values(self, **kwargs):
+        """ Add unit methods calculation to Units `extra_info`
+                NOTE: To access the internally calculated attributes the key is
+                      `last_methodname` and the value returned will be the last value obtained from that method
+
+        :param kwargs:  <dict>  <method_name, method_args> Methods to calculate and corresponding arguments
+        :return:        No return value, units updated by reference
+        """
+        for method, args in kwargs.items():
+            for unit in self:
+                unit.extra_info_method(method, args)
 
     def values(self, *args, flat_list=False):
         """ Get tuples of values of the units inside the UnitManager.
@@ -121,7 +135,6 @@ class UnitManager(list):
                     return reduce(and_func, [evaluate_attribute(unit, attribute, value)
                                              for attribute, value in kwargs.items()])
                 elif mode == UnitManager.OR_MODE:
-                    func = lambda x, y: x or y
                     return reduce(or_func, [evaluate_attribute(unit, attribute, value)
                                             for attribute, value in kwargs.items()])
                 elif mode == UnitManager.EXCLUDE_OR_MODE:
@@ -137,6 +150,17 @@ class UnitManager(list):
         # Filter values with selected function according to mode
         return UnitManager(filter(filter_func, self))
 
+    def sort_by(self, *attributes, reverse=False):
+        """ Returned a UnitManager with units sorted by the given attributes
+
+        :param attributes: <list>  Names of the attributes to sort by
+        :param reverse:    <bool>  Determine if the list should be sorted in reverse order, default False
+
+        :return:           <UnitManager>  Unit Manager with same units as `self` but sorted by `attributes`
+        """
+        return UnitManager(sorted(self, key=lambda unit: [unit.get_attribute(attribute) for attribute in attributes],
+                                  reverse=reverse))
+
 
 class Unit:
     """ Game's unit representation, contains sc2-proto objects with its raw data and basic processing properties and
@@ -150,6 +174,7 @@ class Unit:
     def __init__(self, proto_unit, game_data):
         self.proto_unit = proto_unit
         self.proto_unit_data = game_data.units[proto_unit.unit_type]
+        self.extra_info = {}
 
     @property
     def tag(self):
@@ -179,6 +204,55 @@ class Unit:
     def energy(self):
         return self.proto_unit.energy, self.proto_unit.energy_max
 
+    def extra_info_method(self, method, method_kwargs):
+        """ Set an internal method execution's result as extra info for manager's queries
+            NOTE: To access the internally calculated attributes the key is
+                      `last_methodname` and the value returned will be the last value obtained from that method
+
+        :param method:          <str>   Name of the method called
+        :param method_kwargs:   <dict>  Keyword arguments of method called
+        :return:                No return value, unit's extra_info updated
+        """
+        try:
+            method_result = self.__getattribute__(method)(**method_kwargs)
+            self.extra_info["last_" + method] = method_result
+        except AttributeError:
+            return
+
+    def distance_to(self, unit=None, pos=None, distance_calc=None):
+        """ Calculate unit's distance to target unit/point in the map
+
+        :param unit:            <Unit>      Another unit in the map
+        :param pos:             <tuple>     Point in the map (x,y,z)
+        :param distance_calc:   <function>  Function to use to calculate distance, if not provided, uses euclidean dist
+
+        :return:                <float>     Distance to target
+        """
+        position = []
+
+        if unit is not None:
+            pos = unit.get_attribute("pos")
+
+        if distance_calc is None:
+            distance_calc = euclidean_distance
+
+        # Define position dimensions
+        if pos is not None and not(isinstance(pos, tuple) or isinstance(pos, list)):
+            position.append(pos.x)
+            position.append(pos.y)
+            try:
+                position.append(pos.z)
+            except AttributeError:
+                pass
+        elif pos is not None:
+            position = pos
+        else:
+            return None
+
+        self_pos = self.get_attribute("pos")
+        position_0 = (self_pos.x, self_pos.y, self_pos.z)
+        return distance_calc(position_0, position)
+
     def __repr__(self):
         return "<Unit {} {}>".format(self.name, self.tag)
 
@@ -204,8 +278,22 @@ class Unit:
         try:
             return self.proto_unit.__getattribute__(attribute)
         except AttributeError:
+            # Not in proto's unit
+            pass
+
+        # Try unit data information
+        try:
             # If attribute not in internal proto_unit_data raise AttributeError
             return self.proto_unit_data.__getattribute__(attribute)
+        except AttributeError:
+            # Not in proto's unit data
+            pass
+
+        # Check extra calculated info
+        try:
+            return self.extra_info[attribute]
+        except KeyError:
+            raise AttributeError("Unit has no attribute {}".format(attribute))
 
     def to_dict(self):
         return {
