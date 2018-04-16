@@ -15,17 +15,24 @@ class UnitManager(list):
     def __init__(self, units):
         super().__init__(units)
 
-    def give_order(self, ability_id, orders_dict, target_unit=None, target_point=None):
+    def give_order(self, ability_id, target_unit=None, target_point=None, queue_command=False):
         """ Assign units to perform an Ability (with a particular target or not)
 
         :param ability_id:      <int>    Ability identifier
-        :param orders_dict:     <dict>   Orders dictionary from this game iteration, updated by reference
         :param target_unit:     <int>    (Optional) Targeted unit identifier
         :param target_point:    <tuple>  (Optional) 2D Point (x, y) with targeted coordinates for ability
+        :param queue_command:   <bool>   (Optional) Flag allowing to put orders in queue if units have orders
+                                            default False
         :return:    No return value, orders_dict updated by reference
         """
-        tuple_key = (ability_id, target_unit, target_point)
-        orders_dict.setdefault(tuple_key, []).extend(self.values("tag", flat_list=True))
+        result = None
+
+        # Get tags of units ready to perform the ability
+        unit_tags = self.add_calculated_values(available_abilities={}).filter(
+            last_available_abilities__int=ability_id).values("tag", flat_list=True)
+        # result = api_wrapper.request_perform_action(
+        #     ability_id, target_unit, target_point, queue_command, self.values('tag', flat_list=True))
+        return result, unit_tags
 
     def add_calculated_values(self, **kwargs):
         """ Add unit methods calculation to Units `extra_info`
@@ -38,6 +45,7 @@ class UnitManager(list):
         for method, args in kwargs.items():
             for unit in self:
                 unit.extra_info_method(method, args)
+        return self
 
     def values(self, *args, flat_list=False):
         """ Get tuples of values of the units inside the UnitManager.
@@ -128,21 +136,18 @@ class UnitManager(list):
             """
 
             try:
-                and_func = lambda x, y: x and y
-                or_func = lambda x, y: x or y
-
                 if mode == UnitManager.AND_MODE:
-                    return reduce(and_func, [evaluate_attribute(unit, attribute, value)
-                                             for attribute, value in kwargs.items()])
+                    return reduce(lambda x, y: x and y, [evaluate_attribute(unit, attribute, value)
+                                                         for attribute, value in kwargs.items()])
                 elif mode == UnitManager.OR_MODE:
-                    return reduce(or_func, [evaluate_attribute(unit, attribute, value)
-                                            for attribute, value in kwargs.items()])
+                    return reduce(lambda x, y: x or y, [evaluate_attribute(unit, attribute, value)
+                                                        for attribute, value in kwargs.items()])
                 elif mode == UnitManager.EXCLUDE_OR_MODE:
-                    return reduce(and_func, [not(evaluate_attribute(unit, attribute, value))
-                                             for attribute, value in kwargs.items()])
+                    return reduce(lambda x, y: x and y, [not(evaluate_attribute(unit, attribute, value))
+                                                         for attribute, value in kwargs.items()])
                 elif mode == UnitManager.EXCLUDE_AND_MODE:
-                    return reduce(or_func, [not(evaluate_attribute(unit, attribute, value))
-                                            for attribute, value in kwargs.items()])
+                    return reduce(lambda x, y: x or y, [not(evaluate_attribute(unit, attribute, value))
+                                                        for attribute, value in kwargs.items()])
                 return False
             except AttributeError:
                 return False
@@ -175,6 +180,9 @@ class Unit:
         self.proto_unit = proto_unit
         self.proto_unit_data = game_data.units[proto_unit.unit_type]
         self.extra_info = {}
+
+    def __repr__(self):
+        return "<Unit {} {}>".format(self.name, self.tag)
 
     @property
     def tag(self):
@@ -253,8 +261,12 @@ class Unit:
         position_0 = (self_pos.x, self_pos.y, self_pos.z)
         return distance_calc(position_0, position)
 
-    def __repr__(self):
-        return "<Unit {} {}>".format(self.name, self.tag)
+    def available_abilities(self):
+        available_abilities = self.extra_info.get('last_available_abilities')
+        if available_abilities is None:
+            # available_abilities = api_wrapper.request_available_abilities(self.tag)
+            available_abilities = None
+        return available_abilities
 
     def get_values_attribute(self, attribute):
         if "__" not in attribute:
