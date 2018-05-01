@@ -14,7 +14,7 @@ class Server():
         command = "{0}/Versions/Base59877/SC2_x64 --listen={1} --port={2}"
         command =  command.format(self.starcraft_route,
                 self.address, self.port)
-        p = Popen(command.split(" "), shell=False, stdout=DEVNULL, stderr=DEVNULL)
+        p = Popen(command.split(" "), shell=False)
         time.sleep(5)
         if( not p.poll()):
             future.set_result("Server started")
