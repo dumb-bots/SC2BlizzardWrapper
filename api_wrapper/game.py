@@ -92,25 +92,36 @@ class Game():
         game = ""
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
         while self.status == "started":
-            request_payload = api.Request()
-            request_payload.observation.disable_fog = True
-            ws.send(request_payload.SerializeToString())
-            result = ws.recv()
-            response = api.Response.FromString(result)
+            if not self.human_players:
+                request_payload = api.Request()
+                request_payload.observation.disable_fog = True
+                ws.send(request_payload.SerializeToString())
+                result = ws.recv()
+                response = api.Response.FromString(result)
 
-            game += str(response) + "\n\n"
+                game += str(response) + "\n\n"
 
-            request_payload = api.Request()
-            request_payload.step.count = 1000
-            ws.send(request_payload.SerializeToString())
-            result = ws.recv();
-            response = api.Response.FromString(result)
-            print(response)
-            if response.status == 3:
-                self.status = "started"
+                request_payload = api.Request()
+                request_payload.step.count = 1000
+                ws.send(request_payload.SerializeToString())
+                result = ws.recv();
+                response = api.Response.FromString(result)
+                print(response)
+                if response.status == 3:
+                    self.status = "started"
+                else:
+                    self.status = "finished"
             else:
-                self.status = "finished"
-
+                tasks = []
+                for player in self.human_players:
+                    tasks.append(asyncio.ensure_future(player.advance_time(step)))
+                for task in tasks:
+                    results = await task
+                    game += str(results)
+                    if results.status == 3:
+                        self.status = "started"
+                    else:
+                        self.status = "finished"
 
         log = open("log.txt", "w")
         log.write(game)

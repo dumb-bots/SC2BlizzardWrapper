@@ -13,6 +13,7 @@ class Player():
         self.isComputer = type == "Computer"
         self.game_port = portpicker.pick_unused_port()
         self.base_port = portpicker.pick_unused_port()
+        self.decision_function = lambda x,y:None
         # if server:
         #     self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
         if (not self.server) and (self.type != 'Computer'):
@@ -53,29 +54,21 @@ class Player():
            
 
     async def advance_time(self, step=100):
-        self.game = ""
         async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
-            while self.status == "started":
-                request_payload = api.Request()
-                request_payload.observation.disable_fog = True
-                await ws.send(request_payload.SerializeToString())
-                result = await ws.recv()
-                response = api.Response.FromString(result)
-                print (response)
-                game += str(response) + "\n\n"
-                
-                if(not self.Computer):
-                    self.play(response)
+            request_payload = api.Request()
+            request_payload.observation.disable_fog = True
+            await ws.send(request_payload.SerializeToString())
+            result = await ws.recv()
+            observation = api.Response.FromString(result)
+            
+            if(not self.isComputer):
+                self.play(observation)
 
-                request_payload = api.Request()
-                request_payload.step.count = stepwebsocket
-                await ws.send(request_payload.SerializeToString())
-                result = await ws.recv();
-                response = api.Response.FromString(result)
-                print(response)
-                if response.status == 3:
-                    self.status = "started"
-                else:
-                    self.status = "finished"
+            request_payload = api.Request()
+            request_payload.step.count = step
+            await ws.send(request_payload.SerializeToString())
+            result = await ws.recv();
+            response = api.Response.FromString(result)
+            return observation
             
     
