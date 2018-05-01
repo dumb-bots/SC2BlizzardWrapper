@@ -39,11 +39,43 @@ class Player():
             response = await websocket.recv()
             response = api.Response.FromString(response)
             return response
+    def send_order(self, order):
+        pass
+    def query_alvailable_actions(self):
+        return None
+    def play(self, observation):
+       function = self.decision_function
+       alvailable_actions = self.query_alvailable_actions()
+       to_do_action = function(observation, alvailable_actions)
+       while(to_do_action and alvailable_actions):
+           self.send_order(self, to_do_action)
+           to_do_action = query_alvailable_actions()
+           
+
     async def advance_time(self, step=100):
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as websocket:
-            await websocket.send(request_payload.SerializeToString())
-            response = await websocket.recv()
-            response = api.Response.FromString(response)
-            return response
+        self.game = ""
+        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
+            while self.status == "started":
+                request_payload = api.Request()
+                request_payload.observation.disable_fog = True
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                print (response)
+                game += str(response) + "\n\n"
+                
+                if(not self.Computer):
+                    self.play(response)
+
+                request_payload = api.Request()
+                request_payload.step.count = stepwebsocket
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv();
+                response = api.Response.FromString(result)
+                print(response)
+                if response.status == 3:
+                    self.status = "started"
+                else:
+                    self.status = "finished"
             
     
