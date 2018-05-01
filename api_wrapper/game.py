@@ -4,6 +4,7 @@ import s2clientprotocol.sc2api_pb2 as api;
 import s2clientprotocol.common_pb2 as common;
 from websocket import create_connection
 import portpicker
+import websockets
 class Game():
     def __init__(self, players=[], map="", host=None, server_route=None, server_address=None):
         self.map = map
@@ -28,8 +29,9 @@ class Game():
             future = asyncio.Future()
             asyncio.ensure_future(self.host.start_server(future))
             loop.run_until_complete(future)
+        print (self.host.address, self.host.port)
 
-    def start_game(self):
+    async def start_game(self):
         request_payload = api.Request()
         request_payload.create_game.local_map.map_path = self.map
         
@@ -38,6 +40,7 @@ class Game():
             player1.type = dict(api.PlayerType.items())['Computer']
             player1.difficulty = dict(api.Difficulty.items())[player.difficulty]
             player1.race = dict(common.Race.items())[player.race]
+            player.server = self.host
 
         #Computer vs computer
         if not self.human_players:
@@ -68,26 +71,22 @@ class Game():
             response = api.Response.FromString(result)
             print(response)
             self.status = "started"
-
-        # if len(self.human_players) == 1:
-            
-        # for human in self.human_players:
-        #     ws_player = create_connection("ws://{0}:{1}/sc2api".format(human.server.address, human.server.port))
-        #     request_payload = api.Request()
-        #     request_payload.join_game.race =  dict(common.Race.items())[human.race]
-        #     ports = request_payload.join_game.client_ports.add()
-        #     request_payload.join_game.server_ports.base_port = int(self.host.port) + 1
-        #     request_payload.join_game.server_ports.game_port = int(self.host.port) + 1
-        #     request_payload.join_game.shared_port = int(self.host.port) + 1
-        #     ports.base_port= int(human.server.port) + 2
-        #     ports.game_port= int(human.server.port) + 2
-            
-            # request_payload.join_game.options.raw = True
-            # ws_player.send(request_payload.SerializeToString())
-            # result = ws_player.recv();
-            # response = api.Response.FromString(result)
-            # print (response)
-            # self.status = "started"
+        else:
+            tasks = []
+            port_config = {'players_ports':[], 'shared_port': self.shared_port, 'base_port': self.base_port, 'game_port': self.game_port}
+            for human in self.human_players:
+                player_port = {'base_port': human.base_port, 'game_port': human.game_port}
+                port_config['players_ports'].append(player_port)
+                
+            for human in self.human_players:    
+                tasks.append(asyncio.ensure_future(human.join_game(port_config)))
+            for task in tasks:
+                response = await task
+                print(response)
+                if response.status != 3:
+                    self.status = "launched"
+            if self.status == "created":
+                self.status = "started"
 
     async def simulate(self, step=300):
         game = ""
@@ -106,6 +105,7 @@ class Game():
             ws.send(request_payload.SerializeToString())
             result = ws.recv();
             response = api.Response.FromString(result)
+            print(response)
             if response.status == 3:
                 self.status = "started"
             else:

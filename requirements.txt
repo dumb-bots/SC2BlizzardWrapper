@@ -3,3 +3,4 @@ s2clientprotocol
 six
 portpicker
 websocket-client
+websockets
