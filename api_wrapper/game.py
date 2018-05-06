@@ -87,7 +87,15 @@ class Game():
                     self.status = "launched"
             if self.status == "created":
                 self.status = "started"
-
+    def get_replay(self, filename="Example.SC2Replay"):
+        if self.status == "finished":
+            ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+            replay = api.Request(save_replay=api.RequestSaveReplay())
+            ws.send(replay.SerializeToString())
+            _replay_response = ws.recv()
+            replay_response = api.Response.FromString(_replay_response)
+            with open("Example.SC2Replay", "wb") as f:
+                f.write(replay_response.save_replay.data)
     async def simulate(self, step=300):
         game = ""
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
