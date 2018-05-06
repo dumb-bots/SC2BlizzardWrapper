@@ -1,6 +1,9 @@
 import collections
 from functools import reduce
 
+from s2clientprotocol.raw_pb2 import ActionRawUnitCommand
+from s2clientprotocol.sc2api_pb2 import Action, RequestAction, Request, Response
+
 from game_data.utils import euclidean_distance
 
 
@@ -15,7 +18,7 @@ class UnitManager(list):
     def __init__(self, units):
         super().__init__(units)
 
-    def give_order(self, ability_id, target_unit=None, target_point=None, queue_command=False):
+    async def give_order(self, ws, ability_id, target_unit=None, target_point=None, queue_command=False):
         """ Assign units to perform an Ability (with a particular target or not)
 
         :param ability_id:      <int>    Ability identifier
@@ -26,13 +29,19 @@ class UnitManager(list):
         :return:    No return value, orders_dict updated by reference
         """
         result = None
+        if target_unit is None and target_point is None:
+            pass
+            # request = Request(action=RequestAction(actions=[Action(action_raw=ActionRawUnitCommand(
+            #     ability_id=ability_id, unit_tags=self.values('tag', flat_list=True)))]))
+        else:
+            request = None
 
-        # Get tags of units ready to perform the ability
-        unit_tags = self.add_calculated_values(available_abilities={}).filter(
-            last_available_abilities__int=ability_id).values("tag", flat_list=True)
-        # result = api_wrapper.request_perform_action(
-        #     ability_id, target_unit, target_point, queue_command, self.values('tag', flat_list=True))
-        return result, unit_tags
+        # await ws.send(request.SerializeToString())
+        result = await ws.recv()
+        result = Response.FromString(result)
+        print("HELLO")
+        print(result)
+        return result
 
     def add_calculated_values(self, **kwargs):
         """ Add unit methods calculation to Units `extra_info`
