@@ -131,16 +131,6 @@ class Game():
                     else:
                         self.status = "finished"
 
-        print("Requesting replay from server")
-        replay = api.Request(save_replay=api.RequestSaveReplay())
-        ws.send(replay.SerializeToString())
-        _replay_response = ws.recv()
-        replay_response = api.Response.FromString(_replay_response)
-        # print(replay_response)
-
-        with open("Example.SC2Replay", "wb") as f:
-            f.write(replay_response.save_replay.data)
-
         log = open("log.txt", "w")
         log.write(game)
         log.close()

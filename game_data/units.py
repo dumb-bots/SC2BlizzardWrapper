@@ -1,7 +1,8 @@
 import collections
 from functools import reduce
 
-from s2clientprotocol.raw_pb2 import ActionRawUnitCommand
+from s2clientprotocol.common_pb2 import Point2D
+from s2clientprotocol.raw_pb2 import ActionRawUnitCommand, ActionRaw
 from s2clientprotocol.sc2api_pb2 import Action, RequestAction, Request, Response
 
 from game_data.utils import euclidean_distance
@@ -28,18 +29,21 @@ class UnitManager(list):
                                             default False
         :return:    No return value, orders_dict updated by reference
         """
-        result = None
         if target_unit is None and target_point is None:
-            pass
-            # request = Request(action=RequestAction(actions=[Action(action_raw=ActionRawUnitCommand(
-            #     ability_id=ability_id, unit_tags=self.values('tag', flat_list=True)))]))
+            command = ActionRawUnitCommand(ability_id=ability_id, unit_tags=self.values('tag', flat_list=True))
+        elif target_point is not None:
+            command = ActionRawUnitCommand(ability_id=ability_id, target_world_space_pos=Point2D(x=target_point[0],
+                                                                                                 y=target_point[1]),
+                                           unit_tags=self.values('tag', flat_list=True))
         else:
-            request = None
-
-        # await ws.send(request.SerializeToString())
+            command = ActionRawUnitCommand(ability_id=ability_id, target_unit=(target_unit.get_attribute("pos").x,
+                                                                               target_unit.get_attribute("pos").y),
+                                           unit_tags=self.values('tag', flat_list=True))
+        request = Request(action=RequestAction(actions=[Action(action_raw=ActionRaw(
+            unit_command=command))]))
+        await ws.send(request.SerializeToString())
         result = await ws.recv()
         result = Response.FromString(result)
-        print("HELLO")
         print(result)
         return result
 

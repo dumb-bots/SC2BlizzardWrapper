@@ -5,10 +5,11 @@ from game_data.observations import decode_observation
 from .server import Server
 import portpicker
 import websockets
-import s2clientprotocol.sc2api_pb2 as api;
-import s2clientprotocol.common_pb2 as common;
+import s2clientprotocol.sc2api_pb2 as api
+import s2clientprotocol.common_pb2 as common
+
 class Player():
-    def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None):
+    def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
         self.race = race
         self.type = type
         self.difficulty = difficulty
@@ -51,6 +52,9 @@ class Player():
     def query_alvailable_actions(self):
         return None
 
+    async def process_step(self, ws, game_state):
+        pass
+
     async def play(self, ws, observation):
         request_data = api.Request(data=api.RequestData(ability_id=True, unit_type_id=True, upgrade_id=True))
         await ws.send(request_data.SerializeToString())
@@ -60,14 +64,14 @@ class Player():
         # If game is still on
         if game_data.units:
             obj = decode_observation(observation.observation.observation, game_data)
-            # print(obj.to_dict())
-            await obj.player_units.filter(name="CommandCenter").give_order(ws, ability_id=AbilityId.TRAIN_SCV.value)
-            function = self.decision_function
-            alvailable_actions = self.query_alvailable_actions()
-            to_do_action = function(observation, alvailable_actions)
-            while(to_do_action and alvailable_actions):
-               self.send_order(self, to_do_action)
-               to_do_action = self.query_alvailable_actions()
+            print(obj.to_dict())
+            await self.process_step(ws, obj)
+            # function = self.decision_function
+            # alvailable_actions = self.query_alvailable_actions()
+            # to_do_action = function(observation, alvailable_actions)
+            # while(to_do_action and alvailable_actions):
+            #    self.send_order(self, to_do_action)
+            #    to_do_action = self.query_alvailable_actions()
 
 
     async def advance_time(self, step=100):
