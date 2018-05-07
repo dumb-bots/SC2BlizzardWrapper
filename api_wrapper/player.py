@@ -1,11 +1,15 @@
 import asyncio
+
+from constants.ability_ids import AbilityId
+from game_data.observations import decode_observation
 from .server import Server
 import portpicker
 import websockets
-import s2clientprotocol.sc2api_pb2 as api;
-import s2clientprotocol.common_pb2 as common;
+import s2clientprotocol.sc2api_pb2 as api
+import s2clientprotocol.common_pb2 as common
+
 class Player():
-    def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None):
+    def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
         self.race = race
         self.type = type
         self.difficulty = difficulty
@@ -24,6 +28,7 @@ class Player():
             asyncio.ensure_future(self.server.start_server(future))
             loop.run_until_complete(future)
             # self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
+
     async def join_game(self, port_config):
         request_payload = api.Request()
         request_payload.join_game.race =  dict(common.Race.items())[self.race]
@@ -40,18 +45,34 @@ class Player():
             response = await websocket.recv()
             response = api.Response.FromString(response)
             return response
+
     def send_order(self, order):
         pass
+
     def query_alvailable_actions(self):
         return None
-    def play(self, observation):
-       function = self.decision_function
-       alvailable_actions = self.query_alvailable_actions()
-       to_do_action = function(observation, alvailable_actions)
-       while(to_do_action and alvailable_actions):
-           self.send_order(self, to_do_action)
-           to_do_action = query_alvailable_actions()
-           
+
+    async def process_step(self, ws, game_state):
+        pass
+
+    async def play(self, ws, observation):
+        request_data = api.Request(data=api.RequestData(ability_id=True, unit_type_id=True, upgrade_id=True))
+        await ws.send(request_data.SerializeToString())
+        result = await ws.recv()
+        data_response = api.Response.FromString(result)
+        game_data = data_response.data
+        # If game is still on
+        if game_data.units:
+            obj = decode_observation(observation.observation.observation, game_data)
+            print(obj.to_dict())
+            await self.process_step(ws, obj)
+            # function = self.decision_function
+            # alvailable_actions = self.query_alvailable_actions()
+            # to_do_action = function(observation, alvailable_actions)
+            # while(to_do_action and alvailable_actions):
+            #    self.send_order(self, to_do_action)
+            #    to_do_action = self.query_alvailable_actions()
+
 
     async def advance_time(self, step=100):
         async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
@@ -62,7 +83,7 @@ class Player():
             observation = api.Response.FromString(result)
             
             if(not self.isComputer):
-                self.play(observation)
+                await self.play(ws, observation)
 
             request_payload = api.Request()
             request_payload.step.count = step
