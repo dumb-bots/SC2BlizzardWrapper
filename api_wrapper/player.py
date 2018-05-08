@@ -2,11 +2,14 @@ import asyncio
 
 from constants.ability_ids import AbilityId
 from game_data.observations import decode_observation
+from game_data.action import Action
 from .server import Server
 import portpicker
 import websockets
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.common_pb2 as common
+import s2clientprotocol.query_pb2 as query
+from websocket import create_connection
 
 class Player():
     def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
@@ -49,9 +52,27 @@ class Player():
     def send_order(self, order):
         pass
 
-    def query_alvailable_actions(self):
-        return None
-
+    async def query_alvailable_actions(self, ws, game_state):
+        units = game_state.player_units
+        available_actions = []
+        print(units)
+        for unit in units:
+            lookup = api.Request(query=query.RequestQuery())
+            request_available = lookup.query.abilities.add()
+            request_available.unit_tag = unit.tag
+            await ws.send(lookup.SerializeToString())
+            data = await ws.recv()
+            data = api.Response.FromString(data)
+            abilities = data.query.abilities
+            for ability in abilities:
+                for ab in ability.abilities:
+                    print(ab.ability_id)
+                    if hasattr(ability, "requires_point"):
+                        action = Action(id=unit.tag, ability_id=ab.ability_id, require_target = True)
+                    else:
+                        action = Action(id=unit.tag, ability_id=ab.ability_id)
+                    available_actions.append(action)
+        return available_actions
     async def process_step(self, ws, game_state):
         pass
 
@@ -64,8 +85,8 @@ class Player():
         # If game is still on
         if game_data.units:
             obj = decode_observation(observation.observation.observation, game_data)
-            print(obj.to_dict())
             await self.process_step(ws, obj)
+            await self.query_alvailable_actions(ws, obj)
             # function = self.decision_function
             # alvailable_actions = self.query_alvailable_actions()
             # to_do_action = function(observation, alvailable_actions)
