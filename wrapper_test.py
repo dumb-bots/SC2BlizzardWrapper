@@ -3,9 +3,12 @@ from api_wrapper.game import Game
 import asyncio
 
 from players.build_order import BuildOrderPlayer, DEMO_ORDER_SET
+from players.objectives import ObjectivesPlayer, DEMO_OBJECTIVES_SET
 
-player1 = BuildOrderPlayer("Terran", "Human", server_route='/home/marcelo/StarCraftII', server_address="127.0.0.1",
-                           orders=DEMO_ORDER_SET)
+player1 = ObjectivesPlayer("Terran", "Human", server_route='/home/marcelo/StarCraftII', server_address="127.0.0.1",
+                           objectives=DEMO_OBJECTIVES_SET)
+# player1 = ObjectivesPlayer("Terran", "Human", server_route='/home/marcelo/StarCraftII', server_address="127.0.0.1",
+#                            orders=DEMO_ORDER_SET)
 # player1 = Player("Terran", "Human", server_route='/home/marcelo/StarCraftII', server_address="127.0.0.1")
 # player2 = Player("Zerg", "Human", server_route='/home/marcelo/StarCraftII', server_address="127.0.0.1")
 player2 = Player("Terran", "Computer", difficulty="Medium")

@@ -24,7 +24,7 @@ class DecodedObservation:
 
         # Observation's game loop
         self.game_loop = observation.game_loop
-
+        self.game_data = game_data
     def to_dict(self):
         return {
             "player_common": self.player_info.to_dict(),
