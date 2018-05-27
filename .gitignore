@@ -106,3 +106,4 @@ log.txt
 Example.SC2Replay
 logs/*
 Replays/*
+!.gitkeep
