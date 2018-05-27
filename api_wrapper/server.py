@@ -15,7 +15,7 @@ class Server():
         command =  command.format(self.starcraft_route,
                 self.address, self.port)
         p = Popen(command.split(" "), shell=False)
-        time.sleep(5)
+        time.sleep(7)
         if( not p.poll()):
             future.set_result("Server started")
             self.status = "started"
