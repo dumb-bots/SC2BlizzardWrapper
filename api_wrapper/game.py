@@ -29,6 +29,14 @@ class Game():
             future = asyncio.Future()
             asyncio.ensure_future(self.host.start_server(future))
             loop.run_until_complete(future)
+    def load_replay(self, replay_file, id=0):
+        msg = api.Request(start_replay=api.RequestStartReplay(replay_path=replay_file, observed_player_id=id, options=api.InterfaceOptions(raw=True, score=False)))
+        ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        ws.send(msg.SerializeToString())
+        result = ws.recv()
+        response = api.Response.FromString(result)
+        self.status = "started"
+        print (response)
 
     async def start_game(self):
         request_payload = api.Request()
@@ -55,6 +63,7 @@ class Game():
         ws.send(request_payload.SerializeToString())
         result = ws.recv()
         response = api.Response.FromString(result)
+        print (response)
         self.status = "created"
 
         if len(self.human_players) < 2:
@@ -92,17 +101,17 @@ class Game():
             replay_response = api.Response.FromString(_replay_response)
             with open("Example.SC2Replay", "wb") as f:
                 f.write(replay_response.save_replay.data)
+        self.host.process.terminate()
     async def simulate(self, step=300):
         game = ""
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
-        while self.status == "started":
+        while self.status == "started" or self.status == "replay":
             if not self.human_players:
                 request_payload = api.Request()
                 request_payload.observation.disable_fog = True
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv()
                 response = api.Response.FromString(result)
-
                 game += str(response) + "\n\n"
 
                 request_payload = api.Request()
@@ -110,8 +119,10 @@ class Game():
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv();
                 response = api.Response.FromString(result)
-                if response.status == 3:
+                if response.status == 3 :
                     self.status = "started"
+                elif response.status == 4:
+                    self.status = "replay"
                 else:
                     self.status = "finished"
             else:
@@ -125,7 +136,9 @@ class Game():
                         self.status = "started"
                     else:
                         self.status = "finished"
-
+        for player in self.human_players:
+            if player.server != self.host:
+                player.server.process.terminate()
         log = open("log.txt", "w")
         log.write(game)
         log.close()
