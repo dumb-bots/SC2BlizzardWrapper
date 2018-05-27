@@ -29,7 +29,6 @@ class Game():
             future = asyncio.Future()
             asyncio.ensure_future(self.host.start_server(future))
             loop.run_until_complete(future)
-        print (self.host.address, self.host.port)
 
     async def start_game(self):
         request_payload = api.Request()
@@ -56,7 +55,6 @@ class Game():
         ws.send(request_payload.SerializeToString())
         result = ws.recv()
         response = api.Response.FromString(result)
-        print(response)
         self.status = "created"
 
         if len(self.human_players) < 2:
@@ -69,7 +67,6 @@ class Game():
             ws.send(request_payload.SerializeToString())
             result = ws.recv();
             response = api.Response.FromString(result)
-            print(response)
             self.status = "started"
         else:
             tasks = []
@@ -82,7 +79,6 @@ class Game():
                 tasks.append(asyncio.ensure_future(human.join_game(port_config)))
             for task in tasks:
                 response = await task
-                print(response)
                 if response.status != 3:
                     self.status = "launched"
             if self.status == "created":
@@ -114,7 +110,6 @@ class Game():
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv();
                 response = api.Response.FromString(result)
-                print(response)
                 if response.status == 3:
                     self.status = "started"
                 else:

@@ -1,9 +1,12 @@
 from s2clientprotocol.raw_pb2 import Alliance
 
 from api_wrapper.player import Player
+from api_wrapper.utils import query_building_placement, find_placement
 from constants.ability_ids import AbilityId
 from game_data.units import UnitManager
 
+# TODO: Define all build abilities
+BUILD_ABILITIES = [319, 321]
 
 class PlayerOrder:
     def __init__(self, unit_filters, ability_id, target, repeat=1, unit_index=None):
@@ -44,6 +47,8 @@ class PlayerOrder:
                     target_unit = unit
             elif self.target.get("point"):
                 target_point = self.target['point']
+        if self.ability_id in BUILD_ABILITIES:
+            target_point = await find_placement(ws, self.ability_id, target_point)
         await units.give_order(ws, ability_id=self.ability_id, target_point=target_point, target_unit=target_unit)
 
 
@@ -54,7 +59,7 @@ class BuildOrderPlayer(Player):
         self.current_order = 0
         self.order_repetition = 0
 
-    async def process_step(self, ws, game_state):
+    async def process_step(self, ws, game_state, actions=None):
         if self.current_order < len(self.orders):
             order = self.orders[self.current_order]
             await order.process_order(ws, game_state)
@@ -76,14 +81,20 @@ DEMO_ORDER_SET = (PlayerOrder(unit_filters={"name": "CommandCenter"}, ability_id
                               target={"unit": {"filter_params": {"name": "CommandCenter"}, "index": 0}, "diff": (-6, 6)}),
                   PlayerOrder(unit_filters={"name": "SCV"},unit_index=1, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "CommandCenter"}, "index": 0}, "diff": (4, -4)}),
-                  # PlayerOrder(unit_filters={"name": "SCV"},unit_index=0, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
-                  #             target={"unit": {"filter_params": {"name": "CommandCenter"}, "index": 0}, "diff": (-4, -4)}),
+                  PlayerOrder(unit_filters={"name": "SCV"},unit_index=0, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                              target={"unit": {"filter_params": {"name": "CommandCenter"}, "index": 0}, "diff": (-4, -4)}),
                   PlayerOrder(unit_filters={"name": "SCV"},unit_index=1, ability_id=AbilityId.BUILD_BARRACKS.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (5, 0)}),
                   PlayerOrder(unit_filters={"name": "SCV"},unit_index=0, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
+PlayerOrder(unit_filters={"name": "SCV"},unit_index=3, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                              target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
+PlayerOrder(unit_filters={"name": "SCV"},unit_index=1, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                              target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
+PlayerOrder(unit_filters={"name": "SCV"},unit_index=2, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                              target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
                   PlayerOrder(unit_filters={"name": "Barracks"}, ability_id=AbilityId.TRAIN_MARINE.value,
-                              target=None, repeat=20),
+                              target=None, repeat=40),
                   PlayerOrder(unit_filters={"name": "Marine"}, ability_id=AbilityId.ATTACK.value,
                               target={"unit": {"filter_params": {"name": "OrbitalCommand"}, "index": 0,
                                                "alliance": Alliance.Value("Enemy"), "pos": True}}),

@@ -55,7 +55,6 @@ class Player():
     async def query_alvailable_actions(self, ws, game_state):
         units = game_state.player_units
         available_actions = []
-        print(units)
         for unit in units:
             lookup = api.Request(query=query.RequestQuery())
             request_available = lookup.query.abilities.add()
@@ -66,14 +65,13 @@ class Player():
             abilities = data.query.abilities
             for ability in abilities:
                 for ab in ability.abilities:
-                    print(ab.ability_id)
-                    if hasattr(ability, "requires_point"):
-                        action = Action(id=unit.tag, ability_id=ab.ability_id, require_target = True)
+                    if hasattr(ab, "requires_point"):
+                        action = Action(unit=unit, ability_id=ab.ability_id, require_target = True)
                     else:
-                        action = Action(id=unit.tag, ability_id=ab.ability_id)
+                        action = Action(unit=unit, ability_id=ab.ability_id)
                     available_actions.append(action)
         return available_actions
-    async def process_step(self, ws, game_state):
+    async def process_step(self, ws, game_state, actions=None):
         pass
 
     async def play(self, ws, observation):
@@ -85,8 +83,8 @@ class Player():
         # If game is still on
         if game_data.units:
             obj = decode_observation(observation.observation.observation, game_data)
-            await self.process_step(ws, obj)
-            await self.query_alvailable_actions(ws, obj)
+            actions = await self.query_alvailable_actions(ws, obj)
+            await self.process_step(ws, obj, actions)
             # function = self.decision_function
             # alvailable_actions = self.query_alvailable_actions()
             # to_do_action = function(observation, alvailable_actions)
@@ -102,7 +100,6 @@ class Player():
             await ws.send(request_payload.SerializeToString())
             result = await ws.recv()
             observation = api.Response.FromString(result)
-            
             if(not self.isComputer):
                 await self.play(ws, observation)
 
