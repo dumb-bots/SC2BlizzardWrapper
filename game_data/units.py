@@ -44,7 +44,6 @@ class UnitManager(list):
         await ws.send(request.SerializeToString())
         result = await ws.recv()
         result = Response.FromString(result)
-        print(result)
         return result
 
     def add_calculated_values(self, **kwargs):

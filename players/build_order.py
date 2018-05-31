@@ -1,7 +1,7 @@
 from s2clientprotocol.raw_pb2 import Alliance
 
 from api_wrapper.player import Player
-from api_wrapper.utils import query_building_placement, find_placement
+from api_wrapper.utils import find_placement
 from constants.ability_ids import AbilityId
 from game_data.units import UnitManager
 
@@ -80,7 +80,7 @@ class BuildOrderPlayer(Player):
                 self.order_repetition += 1
         return result
 
-    async def process_step(self, ws, game_state):
+    async def process_step(self, ws, game_state, actions=None):
         await self.process_next_order(ws, game_state)
 
 
