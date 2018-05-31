@@ -8,14 +8,14 @@ class Server():
         self.address = address
         self.port = port
         self.status = 'stopped'
-        self.process = ''
+        self.process = None
 
     async def start_server(self, future):
         command = "{0}/Versions/Base55958/SC2_x64 --listen={1} --port={2}"
         command =  command.format(self.starcraft_route,
                 self.address, self.port)
         p = Popen(command.split(" "), shell=False)
-        time.sleep(5)
+        time.sleep(7)
         if( not p.poll()):
             future.set_result("Server started")
             self.status = "started"
@@ -23,6 +23,7 @@ class Server():
         else:
             future.set_exception(Exception("Server closed"))
             self.process = None
-    def close():
+
+    def close(self):
         self.status = 'stopped'
-        self.p.terminate()
+        self.process.terminate()

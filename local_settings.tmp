@@ -1,0 +1,3 @@
+SERVER_ROUTE = "/home/marcelo/Develop/Facultad/proyecto/StarCraftII"
+SERVER_ADDRESS = "127.0.0.1"
+REPLAY_ROUTE = "/home/marcelo/Develop/Facultad/proyecto/StarCraftII/Replays/"

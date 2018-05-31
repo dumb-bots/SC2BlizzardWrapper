@@ -104,4 +104,6 @@ ENV/
 .vscodeExample.SC2ReplayExample.SC2Replay
 log.txt
 Example.SC2Replay
-
+logs/*
+Replays/*
+!.gitkeep
