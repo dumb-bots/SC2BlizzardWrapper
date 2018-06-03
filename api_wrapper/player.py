@@ -1,8 +1,10 @@
 import asyncio
 
 from constants.ability_ids import AbilityId
+from constants.unit_type_ids import UnitTypeIds
 from game_data.observations import decode_observation
 from game_data.action import Action
+from game_data.units import UnitManager
 from .server import Server
 import portpicker
 import websockets
@@ -109,5 +111,36 @@ class Player():
             result = await ws.recv();
             response = api.Response.FromString(result)
             return observation
-            
-    
+
+    # Player support tools
+    def select_idle_workers(self, game_state, number=None):
+        # TODO: Select according to race
+        worker_id = "SCV"
+
+        idle_workers = game_state.player_units.filter(name=worker_id, orders=[])
+
+        # Returning workers
+        harvest_return_abilities = [ability.value for ability in AbilityId if ability.name.startswith("HARVEST_RETURN")]
+        for ability_id in harvest_return_abilities:
+            idle_workers += game_state.player_units.filter(name=worker_id, orders__ability_id=ability_id)
+
+        # Gathering workers
+        harvest_return_abilities = [ability.value for ability in AbilityId if ability.name.startswith("HARVEST_GATHER")]
+        for ability_id in harvest_return_abilities:
+            idle_workers += game_state.player_units.filter(name=worker_id, orders__ability_id=ability_id)
+
+        # Return manager with idle workers
+        if number is not None:
+            return UnitManager(idle_workers[:number])
+        else:
+            return UnitManager(idle_workers)
+
+    def select_related_minerals(self, game_state, town_hall):
+        mineral_field_ids = [unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name]
+        neutral = game_state.neutral_units.add_calculated_values(distance_to={"unit": town_hall})
+        return neutral.filter(unit_type__in=mineral_field_ids, last_distance_to__lte=10)
+
+    def select_related_gas(self, game_state, town_hall):
+        vespene_geyser_ids = [unit_type.value for unit_type in UnitTypeIds if "VESPENEGEYSER" in unit_type.name]
+        neutral = game_state.neutral_units.add_calculated_values(distance_to={"unit": town_hall})
+        return neutral.filter(unit_type__in=vespene_geyser_ids, last_distance_to__lte=10)
