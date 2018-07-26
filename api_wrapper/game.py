@@ -113,11 +113,10 @@ class Game():
                 result = ws.recv()
                 response = api.Response.FromString(result)
                 game += str(response) + "\n\n"
-
                 request_payload = api.Request()
-                request_payload.step.count = 1000
+                request_payload.step.count = step
                 ws.send(request_payload.SerializeToString())
-                result = ws.recv();
+                result = ws.recv()
                 response = api.Response.FromString(result)
                 if response.status == 3 :
                     self.status = "started"
@@ -131,6 +130,7 @@ class Game():
                     tasks.append(asyncio.ensure_future(player.advance_time(step)))
                 for task in tasks:
                     results = await task
+                    print (results)
                     game += str(results)
                     if results.status == 3:
                         self.status = "started"
