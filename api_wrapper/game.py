@@ -1,12 +1,13 @@
 from .server import Server
 import asyncio
-import s2clientprotocol.sc2api_pb2 as api;
-import s2clientprotocol.common_pb2 as common;
+import s2clientprotocol.sc2api_pb2 as api
+import s2clientprotocol.common_pb2 as common
 from websocket import create_connection
 import portpicker
 import websockets
 import time
 import uuid
+from game_data.observations import DecodedObservation
 class Game():
     async def create(self, players=[], map="", host=None, server_route=None, server_address=None):
         self.map = map
@@ -17,6 +18,7 @@ class Game():
         self.shared_port = portpicker.pick_unused_port()
         self.game_port = portpicker.pick_unused_port()
         self.base_port = portpicker.pick_unused_port()
+        self.replay_info = None
         for player in players:
             if player.isComputer:
                 self.computers.append(player)
@@ -30,8 +32,19 @@ class Game():
             future = asyncio.Future()
             await self.host.start_server(future)
     def load_replay(self, replay_file, id=0):
-        msg = api.Request(start_replay=api.RequestStartReplay(replay_path=replay_file, observed_player_id=id, options=api.InterfaceOptions(raw=True, score=False)))
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+
+        replay_meta = api.Request(replay_info=api.RequestReplayInfo(replay_path=replay_file))
+        ws.send(replay_meta.SerializeToString())
+        result = ws.recv()
+        metadata = api.Response.FromString(result)
+        self.replay_info = {
+            "map": metadata.replay_info.map_name,
+            "races": [metadata.replay_info.player_info[0].player_info.race_requested, metadata.replay_info.player_info[1].player_info.race_requested],
+            "results": [metadata.replay_info.player_info[0].player_result.result, metadata.replay_info.player_info[1].player_result.result]
+        }
+        msg = api.Request(start_replay=api.RequestStartReplay(replay_path=replay_file, observed_player_id=id, options=api.InterfaceOptions(raw=True, score=False)))
+
         ws.send(msg.SerializeToString())
         result = ws.recv()
         response = api.Response.FromString(result)
@@ -108,7 +121,7 @@ class Game():
         while self.status == "started" or self.status == "replay":
             if not self.human_players:
                 request_payload = api.Request()
-                request_payload.observation.disable_fog = True
+                request_payload.observation.disable_fog = False
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv()
                 response = api.Response.FromString(result)
@@ -120,8 +133,6 @@ class Game():
                 response = api.Response.FromString(result)
                 if response.status == 3 :
                     self.status = "started"
-                elif response.status == 4:
-                    self.status = "replay"
                 else:
                     self.status = "finished"
             else:
@@ -142,3 +153,49 @@ class Game():
         log = open("logs/log" + str(uuid.uuid4()) + ".txt", "w")
         log.write(game)
         log.close()
+
+    async def observe_replay(self,step=300):
+        game = ""
+        ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        while self.status == "started" or self.status == "replay":
+            request_payload = api.Request()
+            request_payload.observation.disable_fog = False
+            ws.send(request_payload.SerializeToString())
+            result = ws.recv()
+            response = api.Response.FromString(result)
+            
+            request_data = api.Request(data=api.RequestData(ability_id=True, unit_type_id=True, upgrade_id=True))
+            ws.send(request_data.SerializeToString())
+            result = ws.recv()
+            data_response = api.Response.FromString(result)
+            game_data = data_response.data
+
+            observation = DecodedObservation(response.observation.observation, game_data, list(response.observation.actions))
+
+            # print(observation.player_units)
+            # print(observation.enemy_units)
+            # print(observation.player_info.minerals)
+            # print(observation.player_info.vespene)
+            # print(observation.game_loop)
+            # print(observation.player_info.food_cap)
+            # print(observation.player_info.food_used)
+            # print(observation.player_info.food_army)
+            # print(observation.player_info.food_workers)
+            # print(observation.player_info.idle_worker_count)
+            # print(observation.player_info.army_count)
+            # print(observation.player_info.warp_gate_count)
+            # print(observation.player_info.upgrades)
+            # print(observation.game_event)
+            # print(self.replay_info)
+            #print (observation.parsed_actions)
+            #Pilons and creep to view demo Terran vs Terran, Visibility too
+            # print(list(observation.player_info.power_sources))
+            request_payload = api.Request()
+            request_payload.step.count = step
+            ws.send(request_payload.SerializeToString())
+            result = ws.recv()
+            response = api.Response.FromString(result)
+            if response.status == 4 :
+                self.status = "replay"
+            else:
+                self.status = "finished"

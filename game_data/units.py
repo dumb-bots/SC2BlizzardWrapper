@@ -197,7 +197,11 @@ class Unit:
 
     def __init__(self, proto_unit, game_data):
         self.proto_unit = proto_unit
-        self.proto_unit_data = game_data.units[proto_unit.unit_type]
+        self.proto_unit_data = None
+        for data in game_data.units:
+            if data.unit_id == proto_unit.unit_type:
+                self.proto_unit_data = data
+                break
         self.extra_info = {}
 
     def __repr__(self):
@@ -209,7 +213,10 @@ class Unit:
 
     @property
     def name(self):
-        return self.proto_unit_data.name
+        if self.proto_unit_data:
+            return self.proto_unit_data.name
+        else:
+            return None
 
     @property
     def alliance(self):

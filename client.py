@@ -12,14 +12,14 @@ except ImportError:
 async def load_replay(replay_name, step):
     game = Game()
     await game.create(server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
-    game.load_replay(replay_name,id=0)
-    await game.simulate(step)
+    game.load_replay(replay_name,id=2)
+    await game.observe_replay(step)
     game.host.process.terminate()
 
     game = Game()
     await game.create(server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)  
     game.load_replay(replay_name,id=1)
-    await game.simulate(step)
+    await game.observe_replay(step)
     game.host.process.terminate()
 
 
