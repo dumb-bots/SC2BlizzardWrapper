@@ -186,10 +186,9 @@ class Game():
             # print(observation.player_info.warp_gate_count)
             # print(observation.player_info.upgrades)
             # print(observation.game_event)
-            # print(self.replay_info)
-            #print (observation.parsed_actions)
-            #Pilons and creep to view demo Terran vs Terran, Visibility too
-            # print(list(observation.player_info.power_sources))
+            print (observation.parsed_actions)
+            # print(observation.enemy_currently_seeing_units)
+            # print(observation.enemy_snapshot)
             request_payload = api.Request()
             request_payload.step.count = step
             ws.send(request_payload.SerializeToString())

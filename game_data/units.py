@@ -237,7 +237,9 @@ class Unit:
     @property
     def energy(self):
         return self.proto_unit.energy, self.proto_unit.energy_max
-
+    @property
+    def display(self):
+        return self.proto_unit.display_type
     def extra_info_method(self, method, method_kwargs):
         """ Set an internal method execution's result as extra info for manager's queries
             NOTE: To access the internally calculated attributes the key is

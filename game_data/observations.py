@@ -9,6 +9,7 @@ class DecodedObservation:
         self.player_info = PlayerCommon(observation.player_common, observation.raw_data.player, game_data)
 
         # Set game units
+        self.all_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units])
         self.player_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units
                                          if unit.alliance == api_data.Alliance.Value("Self")])
         self.allied_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units
@@ -18,7 +19,9 @@ class DecodedObservation:
         self.neutral_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units
                                           if unit.alliance == api_data.Alliance.Value("Neutral")])
         self.all_units = UnitManager([Unit(unit, game_data) for unit in observation.raw_data.units])
-
+        self.enemy_currently_seeing_units = self.enemy_units.filter(display=1)
+        self.enemy_snapshot = self.enemy_units.filter(display=2)
+        
         # Effects and events data
         self.game_event = observation.raw_data.event
         self.game_effects = observation.raw_data.effects
@@ -35,21 +38,34 @@ class DecodedObservation:
             else:
                 ability = ""
                 identifier = ac.unit_command.ability_id
-                if identifier == 1:
-                    continue
                 for ability in game_data.abilities:
                     if ability.ability_id == identifier:
                         ability = ability.friendly_name
                         break
-                # TODO Change unit target to spatial target
+                types_grouped = {}
                 for tag in list(ac.unit_command.unit_tags):
-
-                    targetx, targety = (ac.unit_command.target_world_space_pos.x, ac.unit_command.target_world_space_pos.y)
+                    if ac.unit_command.target_unit_tag:
+                        tag = ac.unit_command.target_unit_tag
+                        unit = self.all_units.filter(tag=tag)
+                        if unit:
+                            position = unit[0].get_attribute("pos")
+                            target_unit_type = unit[0].proto_unit_data.unit_id
+                            target_unit_name = unit[0].proto_unit_data.name
+                            targetx = position.x
+                            targety = position.y
+                        else:
+                            continue
+                    else:
+                        targetx, targety = (ac.unit_command.target_world_space_pos.x, ac.unit_command.target_world_space_pos.y)
+                        target_unit_type = None
+                        target_unit_name = None
                     if self.player_units.filter(tag=tag):
                         unitType = self.player_units.filter(tag=tag)[0].proto_unit_data
-                        self.parsed_actions.append((identifier, targetx, targety, unitType.unit_id, unitType.name, ability))
-                    else:
-                        self.parsed_actions.append((identifier, targetx, targety, None, None, ability))
+                        order = types_grouped.get(unitType.unit_id, [0, identifier, targetx, targety, unitType.name, ability, target_unit_type, target_unit_name])
+                        order[0] += 1
+                        types_grouped[unitType.unit_id] = order
+                if types_grouped.items():
+                    self.parsed_actions.append(types_grouped)
 
 
     def to_dict(self):
