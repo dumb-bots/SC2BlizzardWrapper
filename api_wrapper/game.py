@@ -87,7 +87,7 @@ class Game():
                 request_payload.join_game.observed_player_id = 2
             request_payload.join_game.options.raw = True
             ws.send(request_payload.SerializeToString())
-            result = ws.recv();
+            result = ws.recv()
             response = api.Response.FromString(result)
             self.status = "started"
         else:
@@ -186,9 +186,12 @@ class Game():
             # print(observation.player_info.warp_gate_count)
             # print(observation.player_info.upgrades)
             # print(observation.game_event)
-            print (observation.parsed_actions)
+            # print (observation.parsed_actions)
             # print(observation.enemy_currently_seeing_units)
             # print(observation.enemy_snapshot)
+            # print(observation.discovery_percentage)
+            # print(observation.creep_percentage)
+
             request_payload = api.Request()
             request_payload.step.count = step
             ws.send(request_payload.SerializeToString())

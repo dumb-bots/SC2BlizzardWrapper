@@ -4,3 +4,4 @@ six
 portpicker
 websocket-client
 websockets
+Pillow

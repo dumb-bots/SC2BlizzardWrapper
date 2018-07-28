@@ -1,5 +1,5 @@
 import s2clientprotocol.raw_pb2 as api_data
-
+from PIL import Image
 from game_data.units import UnitManager, Unit
 
 
@@ -66,7 +66,19 @@ class DecodedObservation:
                         types_grouped[unitType.unit_id] = order
                 if types_grouped.items():
                     self.parsed_actions.append(types_grouped)
+        self.visibility_data = observation.raw_data.map_state.visibility
+        self.discovery_percentage = sum(filter(lambda x : x >= 1, self.visibility_data.data)) / len(self.visibility_data.data)
+        self.creep_data = observation.raw_data.map_state.creep
+        self.creep_percentage = sum(filter(lambda x : x >= 1, self.creep_data.data)) / len(self.creep_data.data)
 
+    def get_visibility_map():
+        image_data = map (lambda x: 100 * x, self.visibility_data.data)
+        image = Image.frombytes('L', (self.visibility_data.size.x,self.visibility_data.size.y),bytes(image_data) , 'raw')
+        return image
+    def get_creep_map():
+        image_data = map (lambda x: 100 * x, self.creep_data.data)
+        image = Image.frombytes('L', (self.creep_data.size.x,self.creep_data.size.y),bytes(image_data) , 'raw')
+        return image
 
     def to_dict(self):
         return {
