@@ -8,6 +8,8 @@ import websockets
 import time
 import uuid
 from game_data.observations import DecodedObservation
+import pymongo
+
 class Game():
     async def create(self, players=[], map="", host=None, server_route=None, server_address=None):
         self.map = map
@@ -154,9 +156,15 @@ class Game():
         log.write(game)
         log.close()
 
-    async def observe_replay(self,step=300):
+    async def observe_replay(self,step=300, client=None, id=0):
         game = ""
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        if id == 1:
+            db = client[str(self.replay_info["races"][0]) + str(self.replay_info["races"][1])]
+        else:
+            db = client[str(self.replay_info["races"][1]) + str(self.replay_info["races"][0])]
+        keyspace = db.cases
+        insert_cases = []
         while self.status == "started" or self.status == "replay":
             request_payload = api.Request()
             request_payload.observation.disable_fog = False
@@ -171,27 +179,23 @@ class Game():
             game_data = data_response.data
 
             observation = DecodedObservation(response.observation.observation, game_data, list(response.observation.actions))
+            
+            case = observation.to_case(self.replay_info)
 
-            # print(observation.player_units)
-            # print(observation.enemy_units)
-            # print(observation.player_info.minerals)
-            # print(observation.player_info.vespene)
-            # print(observation.game_loop)
-            # print(observation.player_info.food_cap)
-            # print(observation.player_info.food_used)
-            # print(observation.player_info.food_army)
-            # print(observation.player_info.food_workers)
-            # print(observation.player_info.idle_worker_count)
-            # print(observation.player_info.army_count)
-            # print(observation.player_info.warp_gate_count)
-            # print(observation.player_info.upgrades)
-            # print(observation.game_event)
-            # print (observation.parsed_actions)
-            # print(observation.enemy_currently_seeing_units)
-            # print(observation.enemy_snapshot)
-            # print(observation.discovery_percentage)
-            # print(observation.creep_percentage)
-
+            search = keyspace.find_one(case)
+            if search:
+                case.update({
+                    "played_in_games" : search["played_in_games"] + 1,
+                    "wins" : search["wins"] + 1 if self.replay_info["results"][id - 1] == 1 else search["wins"],
+                    "_id" : search["_id"]
+                })
+                keyspace.update({"_id": case["_id"]}, case)
+            else :
+                case.update({
+                    "played_in_games": 1,
+                    "wins": 1 if self.replay_info["results"][id - 1] == 1 else 0,
+                })
+                insert_cases.append(case)
             request_payload = api.Request()
             request_payload.step.count = step
             ws.send(request_payload.SerializeToString())
@@ -201,3 +205,6 @@ class Game():
                 self.status = "replay"
             else:
                 self.status = "finished"
+        if insert_cases:
+            keyspace.insert_many(insert_cases)
+

@@ -360,3 +360,4 @@ class Unit:
             "shield_max": self.proto_unit.shield_max,
             "energy_max": self.proto_unit.energy_max,
         }
+

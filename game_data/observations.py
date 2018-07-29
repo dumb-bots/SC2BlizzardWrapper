@@ -36,59 +36,96 @@ class DecodedObservation:
             if not ac.unit_command:
                 continue
             else:
-                ability = ""
                 identifier = ac.unit_command.ability_id
-                for ability in game_data.abilities:
-                    if ability.ability_id == identifier:
-                        ability = ability.friendly_name
-                        break
                 types_grouped = {}
-                for tag in list(ac.unit_command.unit_tags):
-                    if ac.unit_command.target_unit_tag:
-                        tag = ac.unit_command.target_unit_tag
-                        unit = self.all_units.filter(tag=tag)
-                        if unit:
-                            position = unit[0].get_attribute("pos")
-                            target_unit_type = unit[0].proto_unit_data.unit_id
-                            target_unit_name = unit[0].proto_unit_data.name
-                            targetx = position.x
-                            targety = position.y
-                        else:
-                            continue
+                if ac.unit_command.target_unit_tag:
+                    tag = ac.unit_command.target_unit_tag
+                    unit = self.all_units.filter(tag=tag)
+                    if unit:
+                        position = unit[0].get_attribute("pos")
+                        target_unit_type = unit[0].proto_unit_data.unit_id
+                        target_unit_name = unit[0].proto_unit_data.name
+                        targetx = position.x
+                        targety = position.y
                     else:
-                        targetx, targety = (ac.unit_command.target_world_space_pos.x, ac.unit_command.target_world_space_pos.y)
-                        target_unit_type = None
-                        target_unit_name = None
+                        continue
+                else:
+                    targetx, targety = (ac.unit_command.target_world_space_pos.x, ac.unit_command.target_world_space_pos.y)
+                    target_unit_type = None
+                    target_unit_name = None
+                for tag in list(ac.unit_command.unit_tags):
                     if self.player_units.filter(tag=tag):
                         unitType = self.player_units.filter(tag=tag)[0].proto_unit_data
-                        order = types_grouped.get(unitType.unit_id, [0, identifier, targetx, targety, unitType.name, ability, target_unit_type, target_unit_name])
-                        order[0] += 1
-                        types_grouped[unitType.unit_id] = order
+                        if unitType:
+                            order = types_grouped.get(unitType.unit_id, 0)
+                            order  += 1
+                            types_grouped[unitType.unit_id] = order
+
                 if types_grouped.items():
-                    self.parsed_actions.append(types_grouped)
+                    for key in types_grouped.keys():
+                        item = {
+                            "unit_type_id": key,
+                            "amount": types_grouped[key],
+                            "action_id": identifier,
+                            "x" : targetx,
+                            "y" : targety,
+                            "target_type" : target_unit_type
+
+
+                        }
+                        self.parsed_actions.append(item)
         self.visibility_data = observation.raw_data.map_state.visibility
         self.discovery_percentage = sum(filter(lambda x : x >= 1, self.visibility_data.data)) / len(self.visibility_data.data)
         self.creep_data = observation.raw_data.map_state.creep
         self.creep_percentage = sum(filter(lambda x : x >= 1, self.creep_data.data)) / len(self.creep_data.data)
 
-    def get_visibility_map():
+    def get_visibility_map(self):
         image_data = map (lambda x: 100 * x, self.visibility_data.data)
         image = Image.frombytes('L', (self.visibility_data.size.x,self.visibility_data.size.y),bytes(image_data) , 'raw')
         return image
-    def get_creep_map():
+    def get_creep_map(self):
         image_data = map (lambda x: 100 * x, self.creep_data.data)
         image = Image.frombytes('L', (self.creep_data.size.x,self.creep_data.size.y),bytes(image_data) , 'raw')
         return image
-
-    def to_dict(self):
-        return {
-            "player_common": self.player_info.to_dict(),
-            "player_units": [unit.to_dict() for unit in self.player_units],
-            "allied_units": [unit.to_dict() for unit in self.allied_units],
-            "enemy_units": [unit.to_dict() for unit in self.enemy_units],
-            "neutral_units": [unit.to_dict() for unit in self.neutral_units],
-            "game_loop": self.game_loop
+    
+    def to_case(self, replay_info):
+        json_dict = {
+            "minerals" : self.player_info.minerals,
+            "vespene" : self.player_info.vespene,
+            "game_loop": self.game_loop,
+            "food_cap": self.player_info.food_cap,
+            "food_used": self.player_info.food_used,
+            "food_army": self.player_info.food_army,
+            "food_workers": self.player_info.food_workers,
+            "idle_worker_count": self.player_info.idle_worker_count,
+            "visibility_percentage": self.discovery_percentage,
+            "creep_percentage": self.creep_percentage,
+            "army_count": self.player_info.army_count,
+            "warp_gate_count": self.player_info.warp_gate_count,
+            "units": self.count_units(self.player_units),
+            "enemy_units":self.count_units(self.enemy_units),
+            "upgrades": list(map (lambda x: x.upgrade_id, self.player_info.upgrades)),
+            "visible_enemy_units":self.count_units(self.enemy_currently_seeing_units),
+            "known_invisible_enemy_units":self.count_units(self.enemy_snapshot),
+            "actions": self.parsed_actions
         }
+        return json_dict
+    
+    def count_units(self, units):
+        type_amount = {}
+        for unit in units:
+            val = type_amount.get(unit.proto_unit.unit_type,0)
+            val += 1
+            type_amount[unit.proto_unit.unit_type] = val
+        result = []
+        for key in type_amount.keys():
+            item = {
+                "unit_type_ id": key,
+                "amount": type_amount[key]
+            }
+            result.append(item)
+        return result
+
 
 
 def decode_observation(observation, game_data):
