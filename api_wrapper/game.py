@@ -11,7 +11,7 @@ from game_data.observations import DecodedObservation
 import pymongo
 
 class Game():
-    async def create(self, players=[], map="", host=None, server_route=None, server_address=None):
+    async def create(self, players=[], map="", host=None, server_route=None, server_address=None, matchup=""):
         self.map = map
         self.host = host
         self.status = 'init'
@@ -21,6 +21,7 @@ class Game():
         self.game_port = portpicker.pick_unused_port()
         self.base_port = portpicker.pick_unused_port()
         self.replay_info = None
+        self.required_matchup = matchup
         for player in players:
             if player.isComputer:
                 self.computers.append(player)
@@ -51,7 +52,7 @@ class Game():
         result = ws.recv()
         response = api.Response.FromString(result)
         self.status = "started"
-        print (response)
+        ws.close()
 
     async def start_game(self):
         request_payload = api.Request()
@@ -123,16 +124,11 @@ class Game():
         while self.status == "started" or self.status == "replay":
             if not self.human_players:
                 request_payload = api.Request()
-                request_payload.observation.disable_fog = False
-                ws.send(request_payload.SerializeToString())
-                result = ws.recv()
-                response = api.Response.FromString(result)
-                game += str(response) + "\n\n"
-                request_payload = api.Request()
                 request_payload.step.count = step
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv()
                 response = api.Response.FromString(result)
+                print(response)
                 if response.status == 3 :
                     self.status = "started"
                 else:
@@ -157,12 +153,18 @@ class Game():
         log.close()
 
     async def observe_replay(self,step=300, client=None, id=0):
-        game = ""
-        ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        matchup_string = ""
         if id == 1:
-            db = client[str(self.replay_info["races"][0]) + str(self.replay_info["races"][1])]
+            matchup_string = str(self.replay_info["races"][0]) + str(self.replay_info["races"][1])
         else:
-            db = client[str(self.replay_info["races"][1]) + str(self.replay_info["races"][0])]
+            matchup_string = str(self.replay_info["races"][1]) + str(self.replay_info["races"][0])
+        if self.required_matchup:
+            if self.required_matchup != matchup_string:
+                print("Skipped " + matchup_string)
+                return
+
+        ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        db = client[matchup_string]
         keyspace = db.cases
         insert_cases = []
         while self.status == "started" or self.status == "replay":
@@ -181,21 +183,21 @@ class Game():
             observation = DecodedObservation(response.observation.observation, game_data, list(response.observation.actions))
             
             case = observation.to_case(self.replay_info)
-
-            search = keyspace.find_one(case)
-            if search:
-                case.update({
-                    "played_in_games" : search["played_in_games"] + 1,
-                    "wins" : search["wins"] + 1 if self.replay_info["results"][id - 1] == 1 else search["wins"],
-                    "_id" : search["_id"]
-                })
-                keyspace.update({"_id": case["_id"]}, case)
-            else :
-                case.update({
-                    "played_in_games": 1,
-                    "wins": 1 if self.replay_info["results"][id - 1] == 1 else 0,
-                })
-                insert_cases.append(case)
+            if case["actions"]:
+                search = keyspace.find_one(case)
+                if search:
+                    case.update({
+                        "played_in_games" : search["played_in_games"] + 1,
+                        "wins" : search["wins"] + 1 if self.replay_info["results"][id - 1] == 1 else search["wins"],
+                        "_id" : search["_id"]
+                    })
+                    keyspace.update({"_id": case["_id"]}, case)
+                else :
+                    case.update({
+                        "played_in_games": 1,
+                        "wins": 1 if self.replay_info["results"][id - 1] == 1 else 0,
+                    })
+                    insert_cases.append(case)
             request_payload = api.Request()
             request_payload.step.count = step
             ws.send(request_payload.SerializeToString())
@@ -207,4 +209,5 @@ class Game():
                 self.status = "finished"
         if insert_cases:
             keyspace.insert_many(insert_cases)
+        ws.close()
 

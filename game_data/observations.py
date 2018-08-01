@@ -43,8 +43,9 @@ class DecodedObservation:
                     unit = self.all_units.filter(tag=tag)
                     if unit:
                         position = unit[0].get_attribute("pos")
-                        target_unit_type = unit[0].proto_unit_data.unit_id
-                        target_unit_name = unit[0].proto_unit_data.name
+                        if unit[0].proto_unit_data:
+                            target_unit_type = unit[0].proto_unit_data.unit_id
+                            target_unit_name = unit[0].proto_unit_data.name
                         targetx = position.x
                         targety = position.y
                     else:
@@ -98,8 +99,8 @@ class DecodedObservation:
             "food_army": self.player_info.food_army,
             "food_workers": self.player_info.food_workers,
             "idle_worker_count": self.player_info.idle_worker_count,
-            "visibility_percentage": self.discovery_percentage,
-            "creep_percentage": self.creep_percentage,
+            "visibility_percentage": round(self.discovery_percentage, 2),
+            "creep_percentage": round(self.creep_percentage, 2),
             "army_count": self.player_info.army_count,
             "warp_gate_count": self.player_info.warp_gate_count,
             "units": self.count_units(self.player_units),
@@ -107,7 +108,8 @@ class DecodedObservation:
             "upgrades": list(map (lambda x: x.upgrade_id, self.player_info.upgrades)),
             "visible_enemy_units":self.count_units(self.enemy_currently_seeing_units),
             "known_invisible_enemy_units":self.count_units(self.enemy_snapshot),
-            "actions": self.parsed_actions
+            "map" : replay_info["map"],
+            "actions": self.parsed_actions,
         }
         return json_dict
     
