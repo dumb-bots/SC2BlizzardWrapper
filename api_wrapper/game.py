@@ -121,6 +121,7 @@ class Game():
     async def simulate(self, step=300):
         game = ""
         ws = create_connection("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port))
+        seconds = 0
         while self.status == "started" or self.status == "replay":
             if not self.human_players:
                 request_payload = api.Request()
@@ -128,7 +129,8 @@ class Game():
                 ws.send(request_payload.SerializeToString())
                 result = ws.recv()
                 response = api.Response.FromString(result)
-                print(response)
+                seconds += 1
+                print(seconds / 60)
                 if response.status == 3 :
                     self.status = "started"
                 else:
