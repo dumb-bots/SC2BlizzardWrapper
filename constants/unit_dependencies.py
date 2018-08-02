@@ -62,10 +62,10 @@ UNIT_DEPENDENCIES = {
                                 [UnitTypeIds.FACTORYTECHLAB.value]],
     UnitTypeIds.SIEGETANK.value: [[UnitTypeIds.FACTORYTECHLAB.value]],
     UnitTypeIds.THOR.value: [[UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.ARMORY.value]],
-    # TODO: Check Hellbat ID
-    UnitTypeIds.HELLBAT.value: [[UnitTypeIds.FACTORY.value, UnitTypeIds.ARMORY.value],
-                                [UnitTypeIds.FACTORYREACTOR.value, UnitTypeIds.ARMORY.value],
-                                [UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.ARMORY.value]],
+    # # TODO: Check Hellbat ID
+    # UnitTypeIds.HELLBAT.value: [[UnitTypeIds.FACTORY.value, UnitTypeIds.ARMORY.value],
+    #                             [UnitTypeIds.FACTORYREACTOR.value, UnitTypeIds.ARMORY.value],
+    #                             [UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.ARMORY.value]],
 
     # Starport Units
     UnitTypeIds.VIKINGFIGHTER.value: [[UnitTypeIds.STARPORT.value], [UnitTypeIds.STARPORTREACTOR.value],

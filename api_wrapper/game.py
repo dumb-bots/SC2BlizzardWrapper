@@ -41,6 +41,7 @@ class Game():
         ws.send(replay_meta.SerializeToString())
         result = ws.recv()
         metadata = api.Response.FromString(result)
+        print("META " + str(metadata))
         self.replay_info = {
             "map": metadata.replay_info.map_name,
             "races": [metadata.replay_info.player_info[0].player_info.race_requested, metadata.replay_info.player_info[1].player_info.race_requested],
@@ -141,7 +142,6 @@ class Game():
                     tasks.append(asyncio.ensure_future(player.advance_time(step)))
                 for task in tasks:
                     results = await task
-                    print (results)
                     game += str(results)
                     if results.status == 3:
                         self.status = "started"

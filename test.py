@@ -3,6 +3,12 @@ from os import listdir
 from os.path import isfile, join
 from multiprocessing import Pool
 from subprocess import call
+from players.cbr_player import CBRPlayer
+try:
+    from local_settings import *
+except ImportError:
+    pass
+
 
 onlyfiles = [f for f in listdir(REPLAY_ROUTE) if isfile(join(REPLAY_ROUTE, f))]
 files = list(map(lambda x : REPLAY_ROUTE + x, onlyfiles))
@@ -24,10 +30,10 @@ loop = asyncio.get_event_loop()
 
 # player1 = RandomPlayer("Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
 # loop.run_until_complete(play_vs_ia(player1, "Ladder2017Season3/InterloperLE.SC2Map", "Zerg", "VeryHard", 100))
-for i in range(100):
-    loop.run_until_complete(ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24))
+# for i in range(100):
+#     loop.run_until_complete(ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24))
 
-# player1 = RandomPlayer("Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
-# player2 = RandomPlayer("Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
-# loop.run_until_complete(player_vs_player(player1, player2, "Ladder2017Season3/InterloperLE.SC2Map", 100))
+player1 = CBRPlayer("Terran", "Human", 1000, "Terran", DATABASE_NAME, DATABASE_ROUTE, DATABASE_PORT, server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
+player2 = RandomPlayer("Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
+loop.run_until_complete(player_vs_player(player1, player2, "Ladder2017Season3/InterloperLE.SC2Map", 24))
 loop.close()
