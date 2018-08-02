@@ -53,6 +53,8 @@ class CBRPlayer(ObjectivesPlayer):
         
         print(best_case, best_fitness, i, len(cases))
 
+        actions = case["actions"]
+
                 
 
         
