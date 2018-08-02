@@ -41,7 +41,6 @@ class CBRPlayer(ObjectivesPlayer):
         start = 0 if situation["game_loop"] - self.weights[self.LOOP_RANGE] < 0 else situation["game_loop"] - self.weights[self.LOOP_RANGE]
         end = situation["game_loop"] + self.weights[self.LOOP_RANGE]
         cases = list(self.collection.find({"map":situation["map"], "game_loop" : {"$lt" : end, "$gt" : start}}))
-        
         best_case = cases[0]
         best_fitness = self.get_fittness(situation, cases[0])
         i = 1
@@ -50,13 +49,11 @@ class CBRPlayer(ObjectivesPlayer):
             if case_fitness > best_fitness:
                 best_case = cases[i]
                 best_fitness = case_fitness
-                i += 1
+            i += 1
         
-        print(best_case, best_fitness)
+        print(best_case, best_fitness, i, len(cases))
 
                 
-
-            
 
         
         # print(self.resolve_dependencies(UnitTypeIds.MARINE.value))
@@ -80,65 +77,65 @@ class CBRPlayer(ObjectivesPlayer):
         distance += self.weights[self.GATES]  * abs(situation["warp_gate_count"] - case["warp_gate_count"])
 
 
-        for unit in situation["units"]:
-            common_unit_ammount = 0
-            for caunit in case["units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.UNITS] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in situation["units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in case["units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.UNITS] * abs(unit["amount"] - common_unit_ammount)
         
 
-        for unit in case["units"]:
-            common_unit_ammount = 0
-            for caunit in situation["units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.UNITS] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in case["units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in situation["units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.UNITS] * abs(unit["amount"] - common_unit_ammount)
         
-        for unit in situation["enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in case["enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.ENEMY_UNITS] * abs(unit["amount"] - common_unit_ammount)
-        
-
-        for unit in case["enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in situation["enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.ENEMY_UNITS] * abs(unit["amount"] - common_unit_ammount)
-        
-        for unit in situation["visible_enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in case["visible_enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in situation["enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in case["enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.ENEMY_UNITS] * abs(unit["amount"] - common_unit_ammount)
         
 
-        for unit in case["visible_enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in situation["visible_enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in case["enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in situation["enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.ENEMY_UNITS] * abs(unit["amount"] - common_unit_ammount)
         
-        for unit in situation["known_invisible_enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in case["known_invisible_enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in situation["visible_enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in case["visible_enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
         
 
-        for unit in case["known_invisible_enemy_units"]:
-            common_unit_ammount = 0
-            for caunit in situation["known_invisible_enemy_units"]:
-                if unit["unit_type_ id"] == caunit["unit_type_ id"]:
-                    common_unit_ammount = caunit["amount"]
-            distance += self.weights[self.SNAPSHOT_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        # for unit in case["visible_enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in situation["visible_enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        
+        # for unit in situation["known_invisible_enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in case["known_invisible_enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.VISIBLE_ENEMY] * abs(unit["amount"] - common_unit_ammount)
+        
+
+        # for unit in case["known_invisible_enemy_units"]:
+        #     common_unit_ammount = 0
+        #     for caunit in situation["known_invisible_enemy_units"]:
+        #         if unit["unit_type_ id"] == caunit["unit_type_ id"]:
+        #             common_unit_ammount = caunit["amount"]
+        #     distance += self.weights[self.SNAPSHOT_ENEMY] * abs(unit["amount"] - common_unit_ammount)
 
         
         for upgrade in situation["upgrades"]:
