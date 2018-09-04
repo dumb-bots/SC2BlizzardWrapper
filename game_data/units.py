@@ -107,7 +107,14 @@ class UnitManager(list):
                 if op == "in":
                     unit_value = unit.get_attribute(attribute)
                     evaluation = unit_value in value
-
+                # Lower or equal than operator
+                elif op == "lte":
+                    unit_value = unit.get_attribute(attribute)
+                    evaluation = unit_value <= value
+                # Greater or equal than operator
+                elif op == "gte":
+                    unit_value = unit.get_attribute(attribute)
+                    evaluation = unit_value >= value
                 # Composed attribute filter
                 else:
                     unit_value = unit.get_attribute(attribute)
@@ -190,7 +197,11 @@ class Unit:
 
     def __init__(self, proto_unit, game_data):
         self.proto_unit = proto_unit
-        self.proto_unit_data = game_data.units[proto_unit.unit_type]
+        self.proto_unit_data = None
+        for data in game_data.units:
+            if data.unit_id == proto_unit.unit_type:
+                self.proto_unit_data = data
+                break
         self.extra_info = {}
 
     def __repr__(self):
@@ -202,7 +213,10 @@ class Unit:
 
     @property
     def name(self):
-        return self.proto_unit_data.name
+        if self.proto_unit_data:
+            return self.proto_unit_data.name
+        else:
+            return None
 
     @property
     def alliance(self):
@@ -223,7 +237,9 @@ class Unit:
     @property
     def energy(self):
         return self.proto_unit.energy, self.proto_unit.energy_max
-
+    @property
+    def display(self):
+        return self.proto_unit.display_type
     def extra_info_method(self, method, method_kwargs):
         """ Set an internal method execution's result as extra info for manager's queries
             NOTE: To access the internally calculated attributes the key is
@@ -344,3 +360,4 @@ class Unit:
             "shield_max": self.proto_unit.shield_max,
             "energy_max": self.proto_unit.energy_max,
         }
+

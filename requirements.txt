@@ -2,5 +2,6 @@ protobuf
 s2clientprotocol
 six
 portpicker
-websocket-client
 websockets
+Pillow
+pymongo

@@ -1,12 +1,12 @@
 from s2clientprotocol.raw_pb2 import Alliance
 
 from api_wrapper.player import Player
-from api_wrapper.utils import query_building_placement, find_placement
+from api_wrapper.utils import find_placement
 from constants.ability_ids import AbilityId
 from game_data.units import UnitManager
 
 # TODO: Define all build abilities
-BUILD_ABILITIES = [319, 321]
+BUILD_ABILITIES = [ability.value for ability in AbilityId if ability.name.startswith("BUILD_")]
 
 class PlayerOrder:
     def __init__(self, unit_filters, ability_id, target, repeat=1, unit_index=None):
@@ -49,29 +49,42 @@ class PlayerOrder:
                 target_point = self.target['point']
         if self.ability_id in BUILD_ABILITIES:
             target_point = await find_placement(ws, self.ability_id, target_point)
-        await units.give_order(ws, ability_id=self.ability_id, target_point=target_point, target_unit=target_unit)
+        result = await units.give_order(ws, ability_id=self.ability_id, target_point=target_point,
+                                        target_unit=target_unit)
+        return result
 
 
 class BuildOrderPlayer(Player):
-    def __init__(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
-        super().__init__(race, type, difficulty, server, server_route, server_address, **kwargs)
+    async def create(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
+        await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
         self.orders = kwargs.get('orders', [])
-        self.current_order = 0
+        self.current_order = None
         self.order_repetition = 0
 
+    async def process_next_order(self, ws, game_state):
+        # Check remaining orders
+        if len(self.orders) < 1 and self.current_order is None:
+            print("Ran out of orders")
+            return
+
+        # Get next order
+        if (self.current_order is None):
+            self.order_repetition = 1
+            self.current_order = self.orders.pop(0)
+
+        result = await self.current_order.process_order(ws, game_state)
+        if result.action.result[0] == 1 and next:
+            if self.current_order.repeat <= self.order_repetition:
+                self.current_order = None
+            else:
+                self.order_repetition += 1
+        return result
+
     async def process_step(self, ws, game_state, actions=None):
-        if self.current_order < len(self.orders):
-            order = self.orders[self.current_order]
-            await order.process_order(ws, game_state)
-            self.order_repetition += 1
-            if self.order_repetition >= order.repeat:
-                self.order_repetition = 0
-                self.current_order += 1
-        else:
-            print("Ran out of steps!")
+        await self.process_next_order(ws, game_state)
 
 
-DEMO_ORDER_SET = (PlayerOrder(unit_filters={"name": "CommandCenter"}, ability_id=AbilityId.TRAIN_SCV.value,
+DEMO_ORDER_SET = [PlayerOrder(unit_filters={"name": "CommandCenter"}, ability_id=AbilityId.TRAIN_SCV.value,
                               target=None, repeat=2),
                   PlayerOrder(unit_filters={"name": "SCV"},unit_index=0, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "CommandCenter"}, "index": 0}, "diff": (4, 4)}),
@@ -87,11 +100,11 @@ DEMO_ORDER_SET = (PlayerOrder(unit_filters={"name": "CommandCenter"}, ability_id
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (5, 0)}),
                   PlayerOrder(unit_filters={"name": "SCV"},unit_index=0, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
-PlayerOrder(unit_filters={"name": "SCV"},unit_index=3, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                  PlayerOrder(unit_filters={"name": "SCV"},unit_index=3, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
-PlayerOrder(unit_filters={"name": "SCV"},unit_index=1, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                  PlayerOrder(unit_filters={"name": "SCV"},unit_index=1, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
-PlayerOrder(unit_filters={"name": "SCV"},unit_index=2, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
+                  PlayerOrder(unit_filters={"name": "SCV"},unit_index=2, ability_id=AbilityId.BUILD_SUPPLYDEPOT.value,
                               target={"unit": {"filter_params": {"name": "Barracks"}, "index": 0}, "diff": (-4, 0)}),
                   PlayerOrder(unit_filters={"name": "Barracks"}, ability_id=AbilityId.TRAIN_MARINE.value,
                               target=None, repeat=40),
@@ -99,4 +112,4 @@ PlayerOrder(unit_filters={"name": "SCV"},unit_index=2, ability_id=AbilityId.BUIL
                               target={"unit": {"filter_params": {"name": "OrbitalCommand"}, "index": 0,
                                                "alliance": Alliance.Value("Enemy"), "pos": True}}),
 
-                  )
+                  ]
