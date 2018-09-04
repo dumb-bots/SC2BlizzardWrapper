@@ -55,8 +55,8 @@ class PlayerOrder:
 
 
 class BuildOrderPlayer(Player):
-    def __init__(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
-        super().__init__(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
+    async def create(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
+        await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
         self.orders = kwargs.get('orders', [])
         self.current_order = None
         self.order_repetition = 0

@@ -21,8 +21,8 @@ class Objective:
 
 
 class ObjectivesPlayer(BuildOrderPlayer):
-    def __init__(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
-        super().__init__(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
+    async def create(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
+        await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
         self.objectives = kwargs.get('objectives', [])
 
     def resolve_dependencies(self, unit_id, existing_units=(UnitTypeIds.SCV.value,)):

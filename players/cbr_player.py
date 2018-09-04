@@ -3,7 +3,7 @@ from pymongo import MongoClient
 import datetime
 
 class CBRPlayer(ObjectivesPlayer):
-    def __init__(self, race, obj_type, process_time, oponent_race, db_name, db_host, db_port, difficulty=None, server=None, server_route=None, server_address=None, weights=None, **kwargs):
+    async def create(self, race, obj_type, process_time, oponent_race, db_name, db_host, db_port, difficulty=None, server=None, server_route=None, server_address=None, weights=None, **kwargs):
         if not weights:
             self.weights = [120] + [1 for x in range(0,19)] + [-1]
         else:
@@ -33,7 +33,7 @@ class CBRPlayer(ObjectivesPlayer):
         self.db = self.client["11"]
         self.collection = self.db.cases
         self.process_time = process_time
-        super().__init__(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
+        await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
     
     async def process_step(self, ws, game_state, actions=None):
         start_time = datetime.datetime.now()
@@ -41,21 +41,18 @@ class CBRPlayer(ObjectivesPlayer):
         start = 0 if situation["game_loop"] - self.weights[self.LOOP_RANGE] < 0 else situation["game_loop"] - self.weights[self.LOOP_RANGE]
         end = situation["game_loop"] + self.weights[self.LOOP_RANGE]
         cases = list(self.collection.find({"map":situation["map"], "game_loop" : {"$lt" : end, "$gt" : start}}))
-        best_case = cases[0]
-        best_fitness = self.get_fittness(situation, cases[0])
-        i = 1
-        while (((datetime.datetime.now() - start_time).total_seconds() * 1000) < self.process_time) and i < len(cases):
-            case_fitness = self.get_fittness(situation, cases[i])
-            if case_fitness > best_fitness:
-                best_case = cases[i]
-                best_fitness = case_fitness
-            i += 1
-        
-        print(best_case, best_fitness, i, len(cases))
-
-        actions = case["actions"]
-
-                
+        if cases:
+            best_case = cases[0]
+            best_fitness = self.get_fittness(situation, cases[0])
+            i = 1
+            while (((datetime.datetime.now() - start_time).total_seconds() * 1000) < self.process_time) and i < len(cases):
+                case_fitness = self.get_fittness(situation, cases[i])
+                if case_fitness > best_fitness:
+                    best_case = cases[i]
+                    best_fitness = case_fitness
+                i += 1
+            actions = best_case["actions"]
+        print (situation["game_loop"])
 
         
         # print(self.resolve_dependencies(UnitTypeIds.MARINE.value))
