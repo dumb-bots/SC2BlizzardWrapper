@@ -5,3 +5,4 @@ portpicker
 websockets
 Pillow
 pymongo
+pympler

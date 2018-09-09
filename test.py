@@ -4,12 +4,13 @@ from os.path import isfile, join
 from multiprocessing import Pool
 from subprocess import call
 from players.cbr_player import CBRPlayer
+from pympler import tracker
 try:
     from local_settings import *
 except ImportError:
     pass
 
-
+tr = tracker.SummaryTracker()
 onlyfiles = [f for f in listdir(REPLAY_ROUTE) if isfile(join(REPLAY_ROUTE, f))]
 files = list(map(lambda x: REPLAY_ROUTE + x, onlyfiles))
 
@@ -25,6 +26,7 @@ try:
     p.map(f, files)
 finally:
     loop.close()
+tr.print_diff()
 # while True:
 #     player1 = RandomPlayer()
 #     loop.run_until_complete(player1.create(
