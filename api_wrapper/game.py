@@ -131,7 +131,7 @@ class Game():
                 self.human_players[1].leave_game()
             )
             print(results)
-        self.host.status = "idle"
+        self.host.status = "idle"  
 
     async def simulate(self, step=300):
         async with websockets.connect("ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)) as ws:

@@ -35,6 +35,10 @@ class CBRPlayer(ObjectivesPlayer):
         self.process_time = process_time
         await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
     
+    async def leave_game(self):
+        await super().leave_game()
+        self.client.close()
+
     async def process_step(self, ws, game_state, actions=None):
         start_time = datetime.datetime.now()
         situation = game_state.to_case({"map" : "Interloper LE"})
