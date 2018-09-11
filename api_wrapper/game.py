@@ -253,10 +253,6 @@ class Replay(Game):
 
                 case = observation.to_case(self.replay_info)
                 print(case["game_loop"])
-                case.update({
-                    "played_in_games": 1,
-                    "wins": 1 if self.replay_info["results"][id - 1] == 1 else 0,
-                })
                 cases.append(case)
                 request_payload = api.Request()
                 request_payload.step.count = step
