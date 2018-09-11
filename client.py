@@ -10,7 +10,7 @@ except ImportError:
     pass
 
 
-async def load_replay(replay_name, step=24, matchup=""):
+async def load_replay(replay_name, step=24):
     if DATABASE_NAME == "mongo":
         from pymongo import MongoClient
         client = MongoClient(DATABASE_ROUTE, DATABASE_PORT)
