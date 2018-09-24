@@ -1,4 +1,6 @@
 import asyncio
+import traceback
+from collections import namedtuple
 
 from constants.ability_ids import AbilityId
 from constants.unit_type_ids import UnitTypeIds
@@ -111,17 +113,24 @@ class Player():
         async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
             request_payload = api.Request()
             request_payload.observation.disable_fog = True
-            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
-            result = await asyncio.wait_for(ws.recv(), 5)
-            observation = api.Response.FromString(result)
-            successfull = True
-            if(not self.isComputer):
-                await self.play(ws, observation)
-            request_payload = api.Request()
-            request_payload.step.count = step
-            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
-            result = await asyncio.wait_for(ws.recv(), 5)
-            response = api.Response.FromString(result)
+            DefaultObs = namedtuple('Observation', "status")
+            observation = DefaultObs(3)
+
+            try:
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                observation = api.Response.FromString(result)
+                successfull = True
+                if(not self.isComputer):
+                    await self.play(ws, observation)
+                request_payload = api.Request()
+                request_payload.step.count = step
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                response = api.Response.FromString(result)
+            except:
+                print(traceback.print_exc())
+                print("Error during advance time, ignoring observation")
             return observation
 
     # Player support tools
@@ -152,16 +161,3 @@ class Player():
         else:
             return UnitManager(idle_workers)
 
-    def select_related_minerals(self, game_state, town_hall):
-        mineral_field_ids = [
-            unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name]
-        neutral = game_state.neutral_units.add_calculated_values(
-            distance_to={"unit": town_hall})
-        return neutral.filter(unit_type__in=mineral_field_ids, last_distance_to__lte=10)
-
-    def select_related_gas(self, game_state, town_hall):
-        vespene_geyser_ids = [
-            unit_type.value for unit_type in UnitTypeIds if "VESPENEGEYSER" in unit_type.name]
-        neutral = game_state.neutral_units.add_calculated_values(
-            distance_to={"unit": town_hall})
-        return neutral.filter(unit_type__in=vespene_geyser_ids, last_distance_to__lte=10)

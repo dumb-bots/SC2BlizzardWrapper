@@ -207,6 +207,34 @@ class Unit:
     def __repr__(self):
         return "<Unit {} {}>".format(self.name, self.tag)
 
+    def __getattribute__(self, attribute):
+        try:
+            return super(Unit, self).__getattribute__(attribute)
+        except AttributeError:
+            # Not directly related
+            pass
+
+        # Try internal objects
+        try:
+            return self.proto_unit.__getattribute__(attribute)
+        except AttributeError:
+            # Not in proto's unit
+            pass
+
+        # Try unit data information
+        try:
+            # If attribute not in internal proto_unit_data raise AttributeError
+            return self.proto_unit_data.__getattribute__(attribute)
+        except AttributeError:
+            # Not in proto's unit data
+            pass
+
+        # Check extra calculated info
+        try:
+            return self.extra_info[attribute]
+        except KeyError:
+            raise AttributeError("Unit has no attribute {}".format(attribute))
+
     @property
     def tag(self):
         return self.proto_unit.tag
@@ -308,32 +336,7 @@ class Unit:
                 return unit_attribute.__getattribute__(attribute_elements[1])
 
     def get_attribute(self, attribute):
-        try:
-            return self.__getattribute__(attribute)
-        except AttributeError:
-            # Not directly related
-            pass
-
-        # Try internal objects
-        try:
-            return self.proto_unit.__getattribute__(attribute)
-        except AttributeError:
-            # Not in proto's unit
-            pass
-
-        # Try unit data information
-        try:
-            # If attribute not in internal proto_unit_data raise AttributeError
-            return self.proto_unit_data.__getattribute__(attribute)
-        except AttributeError:
-            # Not in proto's unit data
-            pass
-
-        # Check extra calculated info
-        try:
-            return self.extra_info[attribute]
-        except KeyError:
-            raise AttributeError("Unit has no attribute {}".format(attribute))
+        return self.__getattribute__(attribute)
 
     def to_dict(self):
         return {

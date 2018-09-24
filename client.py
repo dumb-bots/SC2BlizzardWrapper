@@ -31,7 +31,8 @@ async def load_replay(replay_name, step=24):
         client.close()
 
 
-async def play_vs_ia(player, starcrat_map, race, difficulty, step):
+async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
+    await player.create(**player_args)
     player1 = player
     player2 = Player()
     await player2.create(race, "Computer", difficulty)
