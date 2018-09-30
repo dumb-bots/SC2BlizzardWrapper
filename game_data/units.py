@@ -36,8 +36,7 @@ class UnitManager(list):
                                                                                                  y=target_point[1]),
                                            unit_tags=self.values('tag', flat_list=True))
         else:
-            command = ActionRawUnitCommand(ability_id=ability_id, target_unit=(target_unit.get_attribute("pos").x,
-                                                                               target_unit.get_attribute("pos").y),
+            command = ActionRawUnitCommand(ability_id=ability_id, target_unit_tag=target_unit.tag,
                                            unit_tags=self.values('tag', flat_list=True))
         request = Request(action=RequestAction(actions=[Action(action_raw=ActionRaw(
             unit_command=command))]))

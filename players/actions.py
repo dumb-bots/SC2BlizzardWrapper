@@ -1,3 +1,4 @@
+import traceback
 from copy import deepcopy
 
 from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas
@@ -14,7 +15,7 @@ def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.va
 
     # Getting dependencies 0, basic dependencies
     unit_dependencies = UNIT_DEPENDENCIES[unit_id][0]
-    dependencies = deepcopy(unit_dependencies)
+    dependencies = [dependency for dependency in unit_dependencies if dependency not in existing_units]
 
     for unit_dependency in unit_dependencies:
         additional_dependencies = return_current_unit_dependencies(unit_dependency, existing_units)
@@ -76,7 +77,11 @@ class BuildingAction(Action):
 
     def return_resources_required(self, game_data):
         unit_data = game_data.units[self.unit_id]
-        return unit_data.mineral_cost, unit_data.vespene_cost, unit_data.food_required or 3
+        unit_data_patch = UNIT_DATA[self.unit_id]
+
+        return unit_data.mineral_cost, \
+               unit_data.vespene_cost, \
+               unit_data.food_required or unit_data_patch.get('food_required', 0)
 
     def get_action_state(self, game_state, existing_units=None):
         if existing_units is None:
@@ -112,6 +117,7 @@ class Build(BuildingAction):
     async def perform_action(self, ws, game_state):
         try:
             available_builders = get_available_building_unit(self.unit_id, game_state)
+            target_unit = None
 
             # Get ability_id
             ability_id = game_state.game_data.units[self.unit_id].ability_id or UNIT_DATA[self.unit_id]['ability_id']
@@ -130,6 +136,7 @@ class Build(BuildingAction):
                         target_point = geyser.pos.x, geyser.pos.y
                         placement = await find_placement(ws, ability_id, target_point)
                         if placement:
+                            target_unit = geyser
                             break
                 else:
                     target_point = th.pos.x, th.pos.y
@@ -140,12 +147,15 @@ class Build(BuildingAction):
             builder = available_builders[0]
 
             # Send order
-            result = await UnitManager([builder]).give_order(ws, ability_id, target_point=placement)
-            # print(result)
+            if target_unit is None:
+                result = await UnitManager([builder]).give_order(ws, ability_id, target_point=placement)
+            else:
+                result = await UnitManager([builder]).give_order(ws, ability_id, target_unit=target_unit)
 
             # Return result
             return result.action.result[0]
         except Exception:
+            print(traceback.print_exc())
             return False
 
 
@@ -222,7 +232,7 @@ class ActionsPlayer(Player):
         # Current state summary
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
         actions = deepcopy(self.actions_queue)
-        actions.reverse()
+        # actions.reverse()
         actions_and_dependencies = []
         ready_actions = []
 
@@ -277,6 +287,10 @@ class ActionsPlayer(Player):
 
             # Append tuple with action information
             actions_and_dependencies += required_actions + [(action, action_state)]
+            for pending_action in required_actions + [(action, action_state)]:
+                if isinstance(pending_action[0], BuildingAction):
+                    existing_units.add(pending_action[0].unit_id)
+                    unit_queue_set.append(pending_action[0].unit_id)
 
         return actions_and_dependencies
 
@@ -286,7 +300,7 @@ class ActionsPlayer(Player):
             # Attempt to perform actions ready
             if state == Action.READY:
                 success = await action.perform_action(ws, game_state)
-                if not success:
+                if success != 1:
                     remaining_actions.append(action)
             else:
                 remaining_actions.append(action)
@@ -295,8 +309,9 @@ class ActionsPlayer(Player):
     async def process_step(self, ws, game_state, actions=None):
         new_actions = self.get_required_actions(game_state)
         self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
-        # print(new_actions)
-
+        print(new_actions)
+        print(game_state.player_info.food_used, game_state.player_info.food_cap)
 
 DEMO_ACTIONS = [Train(UnitTypeIds.MARAUDER.value, 10)]
 DEMO_ACTIONS_2 = [Train(UnitTypeIds.MARINE.value, 1) for _ in range(3)]
+DEMO_ACTIONS_3 = [Train(UnitTypeIds.MARAUDER.value, 1)] + [Train(UnitTypeIds.MARINE.value, 1) for _ in range(200)]
