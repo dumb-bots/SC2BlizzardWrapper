@@ -227,7 +227,7 @@ class ActionsPlayer(Player):
         # Check remaining orders
         if len(self.actions_queue) < 1:
             print("Ran out of actions")
-            return
+            return []
 
         # Current state summary
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
@@ -315,3 +315,17 @@ class ActionsPlayer(Player):
 DEMO_ACTIONS = [Train(UnitTypeIds.MARAUDER.value, 10)]
 DEMO_ACTIONS_2 = [Train(UnitTypeIds.MARINE.value, 1) for _ in range(3)]
 DEMO_ACTIONS_3 = [Train(UnitTypeIds.MARAUDER.value, 1)] + [Train(UnitTypeIds.MARINE.value, 1) for _ in range(200)]
+DEMO_ACTIONS_4 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
+                 [Build(UnitTypeIds.BARRACKS.value) for _ in range(2)] + \
+                 [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
+                 [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
+                 [Train(UnitTypeIds.HELLION.value, 1) for _ in range(2)] + \
+                 [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)]
+DEMO_ACTIONS_5 = [Train(UnitTypeIds.BATTLECRUISER.value, 1)]
+DEMO_ACTIONS_6 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
+                 [Build(UnitTypeIds.BARRACKS.value) for _ in range(2)] + \
+                 [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
+                 [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
+                 [Train(UnitTypeIds.HELLION.value, 1) for _ in range(2)] + \
+                 [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
+                 [Train(UnitTypeIds.BATTLECRUISER.value, 2)]

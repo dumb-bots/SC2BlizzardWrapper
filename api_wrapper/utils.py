@@ -24,15 +24,34 @@ HARVESTING_ORDERS = [
     AbilityId.HARVEST_RETURN.value,
 ]
 
+TECH_LAB_IDS = [unit_type.value for unit_type in UnitTypeIds if "TECHLAB" in unit_type.name]
+REACTORS_ID = [unit_type.value for unit_type in UnitTypeIds if "REACTOR" in unit_type.name]
+GEYSER_IDS = [unit_type.value for unit_type in UnitTypeIds if "GEYSER" in unit_type.name]
+
 
 def get_available_building_unit(unit_id, game_state):
     idle_builders = []
 
     dependency_list = UNIT_DEPENDENCIES[unit_id]
     building_unit_types = set()
+    addon_types = set()
+
+    # Check buildings in dependency list
     for dependencies in dependency_list:
-        building_unit_types.add(dependencies[-1])
+        build_unit = dependencies[-1]
+        if is_addon(build_unit):
+            addon_types.add(build_unit)
+        else:
+            building_unit_types.add(build_unit)
+
     available_builders = game_state.player_units.filter(unit_type__in=building_unit_types, build_progress=1)
+    if addon_types:
+        addon_tags = game_state.player_units.filter(
+            unit_type__in=addon_types, build_progress=1).values('tag', flat_list=True)
+        addon_buildings = game_state.player_units.filter(add_on_tag__in=addon_tags)
+        available_builders += addon_buildings
+
+    # Get idle builders
     for builder in available_builders:
         if not builder.orders:
             idle_builders.append(builder)
@@ -44,9 +63,19 @@ def get_available_building_unit(unit_id, game_state):
     return idle_builders
 
 
-async def find_placement(ws, ability_id, target_point, circles=6, circle_distance=4):
+def is_addon(unit_type):
+    tech_labs = TECH_LAB_IDS
+    reactors = REACTORS_ID
+    addons = tech_labs + reactors
+    if unit_type in addons:
+        return True
+    else:
+        return False
+
+
+async def find_placement(ws, ability_id, target_point, circles=6, circle_distance=3, min_distance=3):
     for circle in range(1, circles + 1):
-        distance = circle * circle_distance
+        distance = (circle * circle_distance) + min_distance
         options = [(target_point[0], target_point[1]),
                    (target_point[0] + distance, target_point[1] + distance),
                    (target_point[0] + distance, target_point[1]),
@@ -55,7 +84,8 @@ async def find_placement(ws, ability_id, target_point, circles=6, circle_distanc
                    (target_point[0] - distance, target_point[1]),
                    (target_point[0] - distance, target_point[1] - distance),
                    (target_point[0], target_point[1] + distance),
-                   (target_point[0], target_point[1] - distance),]
+                   (target_point[0], target_point[1] - distance),
+                   ]
         for point in options:
             can_place = await query_building_placement(ws, ability_id, point)
             if can_place:
@@ -82,8 +112,7 @@ def select_related_minerals(game_state, town_hall):
 
 
 def select_related_gas(game_state, town_hall):
-    vespene_geyser_ids = [
-        unit_type.value for unit_type in UnitTypeIds if "VESPENEGEYSER" in unit_type.name]
+    vespene_geyser_ids = GEYSER_IDS
     neutral = game_state.neutral_units.add_calculated_values(
         distance_to={"unit": town_hall})
     return neutral.filter(unit_type__in=vespene_geyser_ids, last_distance_to__lte=30)
