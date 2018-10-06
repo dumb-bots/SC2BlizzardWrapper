@@ -107,6 +107,40 @@ class BuildingAction(Action):
             action_state = Action.READY
         return units_required, minerals_missing, vespene_missing, food_missing, action_state
 
+    def determine_action_state(self, existing_units, game_state, unit_queue_set):
+        required_actions = []
+        units_required, minerals_missing, vespene_missing, food_missing, action_state = \
+            self.get_action_state(game_state, existing_units)
+        # Check units for construction and add to queue if not added already
+        # Check vespene production
+        if vespene_missing:
+            # TODO: Check faction
+            refinery_id = UnitTypeIds.REFINERY.value
+            current_units = existing_units.union(unit_queue_set)
+            if refinery_id not in current_units:
+                units_required.append(refinery_id)
+        # Check if food is missing, "You must construct additional Pylons"
+        if food_missing:
+            # TODO: Check faction
+            farm_id = UnitTypeIds.SUPPLYDEPOT.value
+            if farm_id not in unit_queue_set:
+                units_required.append(farm_id)
+
+        # Create actions for required units
+        for unit_id in units_required:
+            # TODO: Check if build or train
+            action_required = Build(unit_id)
+            state, _required_units = action_required.determine_action_state(existing_units, game_state, unit_queue_set)
+            required_actions += _required_units
+
+            if state == Action.READY:
+                m, v, _ = action_required.return_resources_required(game_state.game_data)
+                game_state.player_info.minerals -= m
+                game_state.player_info.vespene -= v
+
+            required_actions.append((action_required, state))
+        return action_state, required_actions
+
 
 class Build(BuildingAction):
     def __init__(self, unit_id, placement=None):
@@ -232,54 +266,24 @@ class ActionsPlayer(Player):
         # Current state summary
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
         actions = deepcopy(self.actions_queue)
-        # actions.reverse()
         actions_and_dependencies = []
-        ready_actions = []
 
+        # Iterate over current actions
         for action in actions:
             unit_queue_set = [action.unit_id for action, state in actions_and_dependencies]
+            building_stuck = isinstance(action, BuildingAction) and \
+                             len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
+            if building_stuck:
+                continue
 
             # Check if action available
-            required_actions = []
+            action_state, required_actions = action.determine_action_state(
+                existing_units,
+                game_state,
+                unit_queue_set
+            )
 
-            units_required, minerals_missing, vespene_missing, food_missing, action_state = \
-                action.get_action_state(game_state, existing_units)
-
-            # Check units for construction and add to queue if not added already
-            # Check vespene production
-            if vespene_missing:
-                # TODO: Check faction
-                refinery_id = UnitTypeIds.REFINERY.value
-                current_units = existing_units.union(unit_queue_set)
-                if refinery_id not in current_units:
-                    units_required.append(refinery_id)
-
-            # Check if food is missing, "You must construct additional Pylons"
-            if food_missing:
-                # TODO: Check faction
-                farm_id = UnitTypeIds.SUPPLYDEPOT.value
-                if farm_id not in unit_queue_set:
-                    units_required.append(farm_id)
-
-            # Create actions for required units
-            for unit_id in units_required:
-                # TODO: Check if build or train
-                action_required = Build(unit_id)
-                _, m, v, f, state = action_required.get_action_state(game_state, existing_units)
-
-                # Check if refinery should be added
-                # TODO: Check faction
-                refinery_id = UnitTypeIds.REFINERY.value
-                if v and refinery_id not in units_required:
-                    units_required.append(refinery_id)
-
-                if state == Action.READY:
-                    m, v, _ = action_required.return_resources_required(game_state.game_data)
-                    game_state.player_info.minerals -= m
-                    game_state.player_info.vespene -= v
-
-                required_actions.append((action_required, state))
-
+            # If action ready reduce resources to proceed with action
             if action_state == Action.READY:
                 m, v, _ = action.return_resources_required(game_state.game_data)
                 game_state.player_info.minerals -= m
@@ -311,6 +315,7 @@ class ActionsPlayer(Player):
         self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
         print(new_actions)
         print(game_state.player_info.food_used, game_state.player_info.food_cap)
+
 
 DEMO_ACTIONS = [Train(UnitTypeIds.MARAUDER.value, 10)]
 DEMO_ACTIONS_2 = [Train(UnitTypeIds.MARINE.value, 1) for _ in range(3)]
