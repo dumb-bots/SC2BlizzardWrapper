@@ -19,6 +19,18 @@ class UnitManager(list):
     def __init__(self, units):
         super().__init__(units)
 
+    def __add__(self, manager):
+        if not isinstance(manager, UnitManager):
+            raise TypeError("Invalid type for UnitManager sum")
+        return UnitManager(super(UnitManager, self).__add__(manager))
+
+    def __getitem__(self, key):
+        super_value = super(UnitManager, self).__getitem__(key)
+        if isinstance(key, slice):
+            return UnitManager(super_value)
+        else:
+            return super_value
+
     async def give_order(self, ws, ability_id, target_unit=None, target_point=None, queue_command=False):
         """ Assign units to perform an Ability (with a particular target or not)
 

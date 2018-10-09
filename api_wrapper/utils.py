@@ -29,12 +29,11 @@ REACTORS_ID = [unit_type.value for unit_type in UnitTypeIds if "REACTOR" in unit
 GEYSER_IDS = [unit_type.value for unit_type in UnitTypeIds if "GEYSER" in unit_type.name]
 
 
-def get_available_building_unit(unit_id, game_state):
-    idle_builders = []
-
-    dependency_list = UNIT_DEPENDENCIES[unit_id]
+def get_building_unit(unit_id):
     building_unit_types = set()
     addon_types = set()
+
+    dependency_list = UNIT_DEPENDENCIES[unit_id]
 
     # Check buildings in dependency list
     for dependencies in dependency_list:
@@ -44,12 +43,24 @@ def get_available_building_unit(unit_id, game_state):
         else:
             building_unit_types.add(build_unit)
 
+    return building_unit_types, addon_types
+
+
+def get_available_builders(unit_id, game_state):
+    building_unit_types, addon_types = get_building_unit(unit_id)
     available_builders = game_state.player_units.filter(unit_type__in=building_unit_types, build_progress=1)
     if addon_types:
         addon_tags = game_state.player_units.filter(
             unit_type__in=addon_types, build_progress=1).values('tag', flat_list=True)
         addon_buildings = game_state.player_units.filter(add_on_tag__in=addon_tags)
         available_builders += addon_buildings
+
+    return available_builders
+
+
+def get_available_building_unit(unit_id, game_state):
+    idle_builders = []
+    available_builders = get_available_builders(unit_id, game_state)
 
     # Get idle builders
     for builder in available_builders:
