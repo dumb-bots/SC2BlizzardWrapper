@@ -14,15 +14,27 @@ def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.va
     if unit_id in existing_units:
         return []
 
-    # Getting dependencies 0, basic dependencies
-    unit_dependencies = UNIT_DEPENDENCIES[unit_id][0]
-    dependencies = [dependency for dependency in unit_dependencies if dependency not in existing_units]
+    # Getting the shortest path, invalid dependency by default
+    selected_dependencies = None
+    try:
+        for unit_dependencies in UNIT_DEPENDENCIES[unit_id]:
+            dependencies = [dependency for dependency in unit_dependencies if dependency not in existing_units]
 
-    for unit_dependency in unit_dependencies:
-        additional_dependencies = return_current_unit_dependencies(unit_dependency, existing_units)
-        dependencies = [dependency for dependency in additional_dependencies if dependency not in existing_units] \
-                       + dependencies
-    return dependencies
+            for unit_dependency in unit_dependencies:
+                additional_dependencies = return_current_unit_dependencies(unit_dependency, existing_units)
+                if additional_dependencies is None:
+                    continue
+
+                dependencies = [dependency for dependency in additional_dependencies if dependency not in existing_units] \
+                               + dependencies
+
+            if selected_dependencies is None or len(dependencies) < len(selected_dependencies):
+                selected_dependencies = dependencies
+
+    # If unit cannot be constructed (has no building dependencies) return None (invalid dependency)
+    except KeyError:
+        return None
+    return selected_dependencies
 
 
 class Action:
@@ -70,16 +82,11 @@ class Action:
         units_required, minerals_missing, vespene_missing, food_missing = \
             self.check_state(game_state, existing_units)
 
-        # Check if missing dependencies
-        missing_dependencies = False
-        for unit_type, amount in units_required.items():
-            units_ready = len(game_state.player_units.filter(unit_type=unit_type, build_progress=1))
-            if units_ready < amount:
-                missing_dependencies = True
-                break
+        ready_units = set(game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True))
+        missing_units = len(self.return_units_required(game_state, ready_units))
 
         # Determine action state
-        if missing_dependencies:
+        if missing_units > 0:
             action_state = Action.MISSING_DEPENDENCIES
         elif minerals_missing or vespene_missing or food_missing:
             action_state = Action.MISSING_RESOURCES
@@ -146,6 +153,7 @@ class Action:
 
                 # Add a build action for required unit
                 required_actions.append((Build(unit_id), state))
+                unit_queue_set.append(unit_id)
         return action_state, required_actions
 
 
