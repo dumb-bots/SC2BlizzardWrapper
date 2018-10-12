@@ -5,6 +5,7 @@ from s2clientprotocol.common_pb2 import Point2D
 from s2clientprotocol.raw_pb2 import ActionRawUnitCommand, ActionRaw
 from s2clientprotocol.sc2api_pb2 import Action, RequestAction, Request, Response
 
+from api_wrapper.utils import HARVESTING_ORDERS
 from game_data.utils import euclidean_distance
 
 
@@ -276,9 +277,11 @@ class Unit:
     @property
     def energy(self):
         return self.proto_unit.energy, self.proto_unit.energy_max
+
     @property
     def display(self):
         return self.proto_unit.display_type
+
     def extra_info_method(self, method, method_kwargs):
         """ Set an internal method execution's result as extra info for manager's queries
             NOTE: To access the internally calculated attributes the key is
@@ -327,6 +330,19 @@ class Unit:
         self_pos = self.get_attribute("pos")
         position_0 = (self_pos.x, self_pos.y, self_pos.z)
         return distance_calc(position_0, position)
+
+    def unit_availability(self):
+        # Harvesting ability
+        orders_abilities = [order.ability_id for order in self.orders]
+
+        # Determine availability
+        if not self.orders:
+            availability_level = 0
+        elif set(orders_abilities) & set(HARVESTING_ORDERS):
+            availability_level = 1
+        else:
+            availability_level = 2
+        return availability_level
 
     def available_abilities(self):
         available_abilities = self.extra_info.get('last_available_abilities')

@@ -1,7 +1,8 @@
 import traceback
 from copy import deepcopy
 
-from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders
+from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders, \
+    select_related_minerals, select_related_refineries
 from constants.ability_ids import AbilityId
 from constants.unit_data import UNIT_DATA
 from constants.unit_dependencies import UNIT_DEPENDENCIES
@@ -75,6 +76,9 @@ class Action:
 
         return units_required, minerals_missing, vespene_missing, food_missing
 
+    def get_units_ready_for_action(self, game_state):
+        return game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True)
+
     def get_action_state(self, game_state, existing_units=None):
         if existing_units is None:
             existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
@@ -82,7 +86,7 @@ class Action:
         units_required, minerals_missing, vespene_missing, food_missing = \
             self.check_state(game_state, existing_units)
 
-        ready_units = set(game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True))
+        ready_units = set(self.get_units_ready_for_action(game_state))
         missing_units = len(self.return_units_required(game_state, ready_units))
 
         # Determine action state
@@ -351,10 +355,13 @@ class UnitAction(Action):
             target = self.get_target_data(game_state)
             troops = self.get_action_units(game_state, target)
 
-            # Send order
-            result = await troops.give_order(ws, self.ability_id, **target)
-            # Return result
-            return result.action.result[0]
+            if troops:
+                # Send order
+                result = await troops.give_order(ws, self.ability_id, **target)
+                return result.action.result[0]
+            else:
+                # No units to perform action, return failure
+                return False
         except Exception:
             return False
 
@@ -376,11 +383,80 @@ class Harvest(UnitAction):
     MINERAL = "mineral"
     VESPENE = "vespene"
 
-    def __init__(self, harvest_type, town_hall_idx, workers):
-        super().__init__(None, None)
+    def __init__(self, workers, harvest_type, town_hall_idx=0):
+        super().__init__(AbilityId.HARVEST_GATHER_SCV.value, workers)
         self.harvest_type = harvest_type
         self.town_hall_idx = town_hall_idx
-        self.workers = workers
+        self.town_hall = None
+        self.ideal_workers = None
+        self.assigned_workers = None
+
+    def get_units_ready_for_action(self, game_state):
+        # Return created IDLE workers
+        return game_state.player_units.filter(
+            build_progress=1
+        ).add_calculated_values(
+            unit_availability={},
+        ).filter(
+            last_unit_availability__in=[0]
+        )
+
+    def get_target_data(self, game_state):
+        # TODO: Check faction
+        try:
+            self.town_hall = game_state.player_units.filter(unit_type__in=[
+                UnitTypeIds.COMMANDCENTER.value,
+                UnitTypeIds.ORBITALCOMMAND.value,
+                UnitTypeIds.PLANETARYFORTRESS.value
+            ])[self.town_hall_idx]
+        except KeyError:
+            self.town_hall = None
+            return {'target_unit': None}
+
+        related_resource = None
+        if self.harvest_type == self.MINERAL:
+            try:
+                related_resource = select_related_minerals(game_state, self.town_hall)[0]
+            except KeyError:
+                pass
+            self.assigned_workers = self.town_hall.assigned_harvesters
+            self.ideal_workers = self.town_hall.ideal_harvesters
+        elif self.harvest_type == self.VESPENE:
+            related_resource = None
+            related_refineries = select_related_refineries(game_state, self.town_hall)
+
+            # Select the refinery with less workers
+            for refinery in related_refineries:
+                if related_resource is None or related_resource.assigned_harvesters > refinery.assigned_harvesters:
+                    related_resource = refinery
+
+            if related_resource:
+                self.assigned_workers = related_resource.assigned_harvesters
+                self.ideal_workers = related_resource.ideal_harvesters
+        return {'target_unit': related_resource}
+
+    def get_action_units(self, game_state, target):
+        target_unit = target.get('target_unit')
+        missing_workers = self.ideal_workers - self.assigned_workers
+
+        # If target unit is None or no workers required, return empty list of workers
+        if target_unit is None or missing_workers <= 0:
+            return []
+
+        workers = UnitManager([])
+        for worker_type, worker_amount in self.unit_group.items():
+            type_workers = game_state.player_units.filter(
+                unit_type=worker_type
+            ).add_calculated_values(
+                distance_to={"unit": target_unit},
+                unit_availability={},
+            ).sort_by('last_unit_availability', 'last_distance_to')
+
+            assignable_workers = min(missing_workers, worker_amount)
+            workers += type_workers[:assignable_workers]
+            missing_workers -= assignable_workers
+
+        return workers
 
 
 class ActionsPlayer(Player):
@@ -407,7 +483,8 @@ class ActionsPlayer(Player):
 
         # Iterate over current actions
         for action in actions:
-            unit_queue_set = [action.unit_id for action, state in actions_and_dependencies]
+            unit_queue_set = [action.unit_id for action, state in actions_and_dependencies
+                              if isinstance(action, BuildingAction)]
             building_stuck = isinstance(action, BuildingAction) and \
                              len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
             if building_stuck:
@@ -481,6 +558,7 @@ DEMO_ACTIONS_8 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Build(UnitTypeIds.BARRACKS.value) for _ in range(2)] + \
                  [Build(UnitTypeIds.REFINERY.value) for _ in range(2)] + \
                  [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
+                 [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
                  [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
                  [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
                  [Attack({UnitTypeIds.BATTLECRUISER.value: 1},

@@ -117,13 +117,29 @@ async def query_building_placement(ws, ability_id, point):
 def select_related_minerals(game_state, town_hall):
     mineral_field_ids = [
         unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name]
-    neutral = game_state.neutral_units.add_calculated_values(
-        distance_to={"unit": town_hall})
-    return neutral.filter(unit_type__in=mineral_field_ids, last_distance_to__lte=30)
+    neutral = game_state.neutral_units.filter(
+        unit_type__in=mineral_field_ids
+    ).add_calculated_values(
+        distance_to={"unit": town_hall}
+    )
+    return neutral.filter(last_distance_to__lte=25).sort_by('last_distance_to')
 
 
 def select_related_gas(game_state, town_hall):
     vespene_geyser_ids = GEYSER_IDS
-    neutral = game_state.neutral_units.add_calculated_values(
-        distance_to={"unit": town_hall})
-    return neutral.filter(unit_type__in=vespene_geyser_ids, last_distance_to__lte=30)
+    neutral = game_state.neutral_units.filter(
+        unit_type__in=vespene_geyser_ids
+    ).add_calculated_values(
+        distance_to={"unit": town_hall}
+    )
+    return neutral.filter(last_distance_to__lte=25).sort_by('last_distance_to')
+
+
+def select_related_refineries(game_state, town_hall):
+    refinery_ids = [UnitTypeIds.REFINERY.value, UnitTypeIds.ASSIMILATOR.value, UnitTypeIds.EXTRACTOR.value]
+    refineries = game_state.player_units.filter(
+        unit_type__in=refinery_ids
+    ).add_calculated_values(
+        distance_to={"unit": town_hall}
+    )
+    return refineries.filter(last_distance_to__lte=25).sort_by('last_distance_to')
