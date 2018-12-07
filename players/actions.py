@@ -1,41 +1,16 @@
 import traceback
-from copy import deepcopy
 
 from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders, \
-    select_related_minerals, select_related_refineries
+    select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
+    return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
+    return_missing_parent_upgrades
 from constants.ability_ids import AbilityId
 from constants.unit_data import UNIT_DATA
-from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_data import UPGRADE_DATA
+from constants.upgrade_ids import UpgradeIds
 from game_data.units import UnitManager
 from players.build_order import Player
-
-
-def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.value,)):
-    if unit_id in existing_units:
-        return []
-
-    # Getting the shortest path, invalid dependency by default
-    selected_dependencies = None
-    try:
-        for unit_dependencies in UNIT_DEPENDENCIES[unit_id]:
-            dependencies = [dependency for dependency in unit_dependencies if dependency not in existing_units]
-
-            for unit_dependency in unit_dependencies:
-                additional_dependencies = return_current_unit_dependencies(unit_dependency, existing_units)
-                if additional_dependencies is None:
-                    continue
-
-                dependencies = [dependency for dependency in additional_dependencies if dependency not in existing_units] \
-                               + dependencies
-
-            if selected_dependencies is None or len(dependencies) < len(selected_dependencies):
-                selected_dependencies = dependencies
-
-    # If unit cannot be constructed (has no building dependencies) return None (invalid dependency)
-    except KeyError:
-        return None
-    return selected_dependencies
 
 
 class Action:
@@ -56,6 +31,9 @@ class Action:
     def return_units_required(self, game_state, existing_units):
         return {}
 
+    def return_upgrades_required(self, game_state):
+        return {}
+
     def return_resources_required(self, game_data):
         return 0, 0, 0
 
@@ -65,6 +43,7 @@ class Action:
         food = game_state.player_info.food_cap - game_state.player_info.food_used
 
         units_required = self.return_units_required(game_state, existing_units)
+        upgrades_required = self.return_upgrades_required(game_state)
         minerals_required, vespene_required, food_required = self.return_resources_required(game_state.game_data)
 
         minerals_missing = minerals - minerals_required
@@ -74,91 +53,164 @@ class Action:
         food_missing = food - food_required
         food_missing = - food_missing if food_missing < 0 else 0
 
-        return units_required, minerals_missing, vespene_missing, food_missing
+        return units_required, upgrades_required, minerals_missing, vespene_missing, food_missing
 
     def get_units_ready_for_action(self, game_state):
         return game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True)
 
-    def get_action_state(self, game_state, existing_units=None):
-        if existing_units is None:
-            existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
+    def get_action_state(self, game_state):
+        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
 
-        units_required, minerals_missing, vespene_missing, food_missing = \
+        units_required, upgrades_required, minerals_missing, vespene_missing, food_missing = \
             self.check_state(game_state, existing_units)
 
         ready_units = set(self.get_units_ready_for_action(game_state))
         missing_units = len(self.return_units_required(game_state, ready_units))
+        missing_upgrades = len(self.return_upgrades_required(game_state))
 
         # Determine action state
-        if missing_units > 0:
+        if missing_units > 0 or missing_upgrades > 0:
             action_state = Action.MISSING_DEPENDENCIES
         elif minerals_missing or vespene_missing or food_missing:
             action_state = Action.MISSING_RESOURCES
         else:
             action_state = Action.READY
-        return units_required, minerals_missing, vespene_missing, food_missing, action_state
+        return units_required, upgrades_required, minerals_missing, vespene_missing, food_missing, action_state
 
-    def determine_action_state(self, existing_units, game_state, unit_queue_set):
+    def determine_action_state(self, game_state, units_queue, upgrades_queue):
         required_actions = []
-        units_required, minerals_missing, vespene_missing, food_missing, action_state = \
-            self.get_action_state(game_state, existing_units)
 
-        # Check units for construction and add to queue if not added already
-        # Check vespene production
-        if vespene_missing:
-            # TODO: Check faction
-            refinery_id = UnitTypeIds.REFINERY.value
-            current_units = existing_units.union(unit_queue_set)
-            if refinery_id not in current_units:
-                units_required[refinery_id] = 1
-        # Check if food is missing, "You must construct additional Pylons"
-        if food_missing:
-            # TODO: Check faction
-            farm_id = UnitTypeIds.SUPPLYDEPOT.value
-            if farm_id not in unit_queue_set:
-                units_required[farm_id] = 1
+        # Units query
+        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
+        all_units = existing_units.union(set(units_queue))
 
+        units_required, upgrades_required, minerals_missing, vespene_missing, food_missing, action_state = \
+            self.get_action_state(game_state)
+
+        # Check additional missing units
+        vespene_units = self.vespene_dependency(all_units, vespene_missing)
+        food_units = self.food_dependency(units_queue, food_missing)
+        units_required.update(vespene_units)
+        units_required.update(food_units)
+
+        # Add dependencies
+        self.add_build_dependencies(game_state, units_queue, upgrades_queue, units_required, required_actions)
+        self.add_upgrade_dependencies(game_state, units_queue, upgrades_queue, upgrades_required, required_actions)
+        return action_state, required_actions
+
+    def add_upgrade_dependencies(self, game_state, units_queue, upgrades_queue, upgrades_required, required_actions):
+        # Create actions for required units
+        for upgrade in upgrades_required:
+            # Check if upgrade not in queue already
+            if upgrade in upgrades_queue or self.upgrade_in_game_queue(game_state, upgrade):
+                continue
+            else:
+                self.add_upgrade_actions(
+                    upgrade,
+                    game_state,
+                    units_queue,
+                    upgrades_queue,
+                    required_actions,
+                )
+
+    def add_build_dependencies(self, game_state, units_queue, upgrades_queue, units_required, required_actions):
         # Create actions for required units
         for unit_id, amount in units_required.items():
-            # Decrease required units based on queue units
-            queue_count = unit_queue_set.count(unit_id)
 
-            # Decrease required units based on units under construction
-            in_progress = 0
-            build_ability_id = game_state.game_data.units[unit_id].ability_id or UNIT_DATA[unit_id]['ability_id']
-            for builder in get_available_builders(unit_id, game_state):
-                for order in builder.orders:
-                    if order.ability_id == build_ability_id:
-                        in_progress += 1
-
-            # Reduce units required
-            reduced = queue_count + in_progress
-            if amount < reduced:
+            # Get number of units required
+            reduced = self.number_of_units_under_construction(game_state, unit_id, units_queue)
+            if amount <= reduced:
                 continue
             else:
                 amount -= reduced
 
-            # TODO: Check if build or train
-            action_required = Build(unit_id)
-            state, _required_units = action_required.determine_action_state(existing_units, game_state, unit_queue_set)
-            required_actions += _required_units
+            self.add_build_actions(
+                unit_id,
+                amount,
+                game_state,
+                units_queue,
+                upgrades_queue,
+                required_actions,
+            )
 
-            # Added requirements to queue
-            for req_unit_build, _ in _required_units:
-                if isinstance(req_unit_build, BuildingAction):
-                    unit_queue_set.append(req_unit_build.unit_id)
+    def add_upgrade_actions(self, upgrade, game_state, units_queue, upgrades_queue, required_actions,):
+        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
+        all_units = existing_units.union(set(units_queue))
 
-            for _ in range(amount):
-                _, _, _, food_missing, state = self.get_action_state(game_state, existing_units)
-                if state == Action.READY:
-                    m, v, _ = action_required.return_resources_required(game_state.game_data)
-                    game_state.player_info.minerals -= m
-                    game_state.player_info.vespene -= v
+        # Add required buildings
+        buildings_required = return_upgrade_building_requirements(upgrade, all_units)
+        units_required = {unit_id: 1 for unit_id in buildings_required}
+        self.add_build_dependencies(game_state, units_queue, upgrades_queue, units_required, required_actions)
 
-                # Add a build action for required unit
-                required_actions.append((Build(unit_id), state))
-                unit_queue_set.append(unit_id)
-        return action_state, required_actions
+        # Add action
+        action = Upgrade(upgrade)
+        _, _, _, _, food_missing, state = self.get_action_state(game_state)
+        if state == Action.READY:
+            m, v, _ = action.return_resources_required(game_state.game_data)
+            game_state.player_info.minerals -= m
+            game_state.player_info.vespene -= v
+
+        # Add a build action for required unit
+        required_actions.append((action, state))
+        upgrades_queue.append(upgrade)
+
+    def vespene_dependency(self, current_units, vespene_missing):
+        missing_units = {}
+        if vespene_missing:
+            # TODO: Check faction
+            refinery_id = UnitTypeIds.REFINERY.value
+            if refinery_id not in current_units:
+                missing_units[refinery_id] = 1
+        return missing_units
+
+    def food_dependency(self, units_in_queue, food_missing):
+        missing_units = {}
+        if food_missing:
+            # TODO: Check faction
+            farm_id = UnitTypeIds.SUPPLYDEPOT.value
+            if farm_id not in units_in_queue:
+                missing_units[farm_id] = 1
+        return missing_units
+
+    def upgrade_in_game_queue(self, game_state, upgrade):
+        for builder in get_available_upgrade_buildings(game_state, upgrade):
+            for order in builder.orders:
+                if order.ability_id == UPGRADE_DATA[upgrade]['ability_id']:
+                    return True
+        return False
+
+    def number_of_units_under_construction(self, game_state, unit_id, unit_queue_set):
+        # Decrease required units based on queue units
+        queue_count = unit_queue_set.count(unit_id)
+        # Decrease required units based on units under construction
+        in_progress = 0
+        build_ability_id = game_state.game_data.units[unit_id].ability_id or UNIT_DATA[unit_id]['ability_id']
+        for builder in get_available_builders(unit_id, game_state):
+            for order in builder.orders:
+                if order.ability_id == build_ability_id:
+                    in_progress += 1
+        # Reduce units required
+        reduced = queue_count + in_progress
+        return reduced
+
+    def add_build_actions(self, unit_id, amount, game_state, units_queue, upgrades_queue, required_actions):
+        # TODO: Check if build or train
+        action_required = Build(unit_id)
+
+        # Add unit dependencies
+        state, _required_units = action_required.determine_action_state(game_state, units_queue, upgrades_queue)
+        required_actions += _required_units
+        # Added requirements to queue
+        for _ in range(amount):
+            _, _, _, _, food_missing, state = self.get_action_state(game_state)
+            if state == Action.READY:
+                m, v, _ = action_required.return_resources_required(game_state.game_data)
+                game_state.player_info.minerals -= m
+                game_state.player_info.vespene -= v
+
+            # Add a build action for required unit
+            required_actions.append((Build(unit_id), state))
+            units_queue.append(unit_id)
 
 
 # Building Actions -------------------------------
@@ -173,7 +225,12 @@ class BuildingAction(Action):
 
     def return_units_required(self, game_state, existing_units):
         # For building, only requires 1 unit available
-        return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, existing_units)}
+        try:
+            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, existing_units)}
+        except Exception as e:
+            print(self.unit_id)
+            print(existing_units)
+            print(e)
 
     def return_resources_required(self, game_data):
         unit_data = game_data.units[self.unit_id]
@@ -190,16 +247,19 @@ class Build(BuildingAction):
         # Use to define target point
         self.placement = placement
 
-    def determine_action_state(self, existing_units, game_state, unit_queue_set):
+    def determine_action_state(self, game_state, units_queue, upgrades_queue):
         building_stuck = len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
         if building_stuck:
             return Action.MISSING_DEPENDENCIES, []
         else:
-            return super(Build, self).determine_action_state(existing_units, game_state, unit_queue_set)
+            return super(Build, self).determine_action_state(game_state, units_queue, upgrades_queue)
 
     async def perform_action(self, ws, game_state):
         try:
             available_builders = get_available_building_unit(self.unit_id, game_state)
+            if not available_builders:
+                return False
+
             target_unit = None
 
             # Get ability_id
@@ -350,6 +410,9 @@ class UnitAction(Action):
                 required_units[unit_type] = missing
         return required_units
 
+    def return_upgrades_required(self, game_state):
+        return return_current_ability_dependencies(self.ability_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+
     async def perform_action(self, ws, game_state):
         try:
             target = self.get_target_data(game_state)
@@ -459,6 +522,22 @@ class Harvest(UnitAction):
         return workers
 
 
+class Upgrade(UnitAction):
+    def __init__(self, upgrade_id):
+        upgrade_data = UPGRADE_DATA[upgrade_id]
+        upgrade_unit = get_upgrading_building(upgrade_id)
+        super().__init__(upgrade_data['ability_id'], {upgrade_unit: 1})
+        self.upgrade_id = upgrade_id
+
+    def return_upgrades_required(self, game_state):
+        return return_missing_parent_upgrades(self.upgrade_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+
+    def return_resources_required(self, game_data):
+        mineral_cost = UPGRADE_DATA[self.upgrade_id]['mineral_cost']
+        vespene_cost = UPGRADE_DATA[self.upgrade_id]['vespene_cost']
+        return mineral_cost, vespene_cost, 0
+
+
 class ActionsPlayer(Player):
     def __init__(self):
         self.actions_queue = []
@@ -477,24 +556,16 @@ class ActionsPlayer(Player):
             return []
 
         # Current state summary
-        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
-        actions = deepcopy(self.actions_queue)
         actions_and_dependencies = []
 
         # Iterate over current actions
-        for action in actions:
-            unit_queue_set = [action.unit_id for action, state in actions_and_dependencies
-                              if isinstance(action, BuildingAction)]
-            building_stuck = isinstance(action, BuildingAction) and \
-                             len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
-            if building_stuck:
-                continue
+        for action in self.actions_queue:
 
-            # Check if action available
+            # Get action state
             action_state, required_actions = action.determine_action_state(
-                existing_units,
                 game_state,
-                unit_queue_set
+                [action.unit_id for action, _ in actions_and_dependencies if isinstance(action, BuildingAction)],
+                [action.upgrade_id for action, _ in actions_and_dependencies if isinstance(action, Upgrade)],
             )
 
             # If action ready reduce resources to proceed with action
@@ -505,10 +576,6 @@ class ActionsPlayer(Player):
 
             # Append tuple with action information
             actions_and_dependencies += required_actions + [(action, action_state)]
-            for pending_action in required_actions + [(action, action_state)]:
-                if isinstance(pending_action[0], BuildingAction):
-                    existing_units.add(pending_action[0].unit_id)
-                    unit_queue_set.append(pending_action[0].unit_id)
 
         return actions_and_dependencies
 
@@ -567,3 +634,8 @@ DEMO_ACTIONS_8 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                                       "action_pos": True
                                       })
                   ]
+DEMO_ACTIONS_9 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
+                 [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
+                 [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
+                 [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
+                 [UnitAction(ability_id=AbilityId.STIMPACK_1.value, unit_group={UnitTypeIds.MARINE.value: 5})]

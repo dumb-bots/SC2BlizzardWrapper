@@ -35,6 +35,7 @@ class Server():
 
     async def start_server(self):
         command = "{0}/Versions/Base55958/SC2_x64 --listen={1} --port={2}"
+        # command = "{0}/Versions/Base60321/SC2_x64 --listen={1} --port={2}"
         command =  command.format(self.starcraft_route,
                 self.address, self.port)
         p = Popen(command.split(" "), shell=False)
