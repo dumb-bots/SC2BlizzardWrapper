@@ -638,4 +638,4 @@ DEMO_ACTIONS_9 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
                  [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
                  [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
-                 [UnitAction(ability_id=AbilityId.STIMPACK_1.value, unit_group={UnitTypeIds.MARINE.value: 5})]
+                 [UnitAction(ability_id=AbilityId.EFFECT_STIM_MARINE.value, unit_group={UnitTypeIds.MARINE.value: 5})]
