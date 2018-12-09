@@ -10,7 +10,7 @@ from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
 from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
 from sc2_wrapper.game_data.units import UnitManager
-from build_order import Player
+from sc2_wrapper.players.build_order import Player
 
 
 class Action:
