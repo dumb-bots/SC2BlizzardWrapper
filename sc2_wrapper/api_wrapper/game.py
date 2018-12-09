@@ -266,8 +266,6 @@ class Replay(Game):
         return result
 
 class Classifier(Replay):
-    def __init__(self, matchup, server, address):
-        self.required_matchup = matchup
-        super().__init__(server,address)
-
+    async def observe_replay(self, step=300, id=0):
+        return self.replay_info
         

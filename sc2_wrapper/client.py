@@ -25,6 +25,14 @@ async def load_replay(replay_name, step=5000):
     return json.dumps([sidea, sideb])
 
 
+async def classify(replay_name):
+    game = Classifier(SERVER_ROUTE, SERVER_ADDRESS)
+    await game.create()
+    await game.load_replay(replay_name, id=2)
+    meta = await game.observe_replay(24, 2)
+    return json.dumps(meta)
+
+
 async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
     await player.create(**player_args)
     player1 = player
