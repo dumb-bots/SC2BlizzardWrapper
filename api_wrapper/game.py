@@ -104,7 +104,7 @@ class PlayerVSIA(PlayedGame):
             player1.difficulty = dict(api.Difficulty.items())[
                 self.computer.difficulty]
             player1.race = dict(common.Race.items())[self.computer.race]
-            player.server = self.host
+            self.player.server = self.host
 
             player1 = request_payload.create_game.player_setup.add()
             player1.type = dict(api.PlayerType.items())['Participant']
@@ -217,7 +217,6 @@ class Replay(Game):
             await ws.send(replay_meta.SerializeToString())
             result = await ws.recv()
             metadata = api.Response.FromString(result)
-            print("META " + str(metadata))
             self.replay_info = {
                 "map": metadata.replay_info.map_name,
                 "races": [metadata.replay_info.player_info[0].player_info.race_requested, metadata.replay_info.player_info[1].player_info.race_requested],
@@ -264,7 +263,8 @@ class Replay(Game):
                 else:
                     self.status = "finished"
             self.host.status = "idle"
-        return {"metadata": self.replay_info, "cases":cases, "player_id": id-1}
+        result = {"metadata": self.replay_info, "cases":cases, "player_id": id-1}
+        return result
 
 class Classifier(Replay):
     def __init__(self, matchup, server, address):

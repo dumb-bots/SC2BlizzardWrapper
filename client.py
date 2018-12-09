@@ -1,34 +1,29 @@
 from api_wrapper.player import Player
-from api_wrapper.game import Game
+from api_wrapper.game import Replay, PlayerVSIA, PlayerVSPlayer, IAVSIA
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from players.build_order import BuildOrderPlayer, DEMO_ORDER_SET
 from players.random import RandomPlayer
+import json
+
 try:
     from local_settings import *
 except ImportError:
     pass
 
 
-async def load_replay(replay_name, step=24):
-    if DATABASE_NAME == "mongo":
-        from pymongo import MongoClient
-        client = MongoClient(DATABASE_ROUTE, DATABASE_PORT)
-    else:
-        client = None
-    game = Game()
-    await game.create(server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS, matchup=matchup)
+async def load_replay(replay_name, step=5000):
+    game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
+    await game.create()
     await game.load_replay(replay_name, id=2)
-    await game.observe_replay(step, client, 2)
+    sidea = await game.observe_replay(step, 2)
     game.host.status = "idle"
-
-    game = Game()
-    await game.create(server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS, matchup=matchup)
+    game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
+    await game.create()
     await game.load_replay(replay_name, id=1)
-    await game.observe_replay(step, client, 1)
+    sideb = await game.observe_replay(step, 1)
     game.host.status = "idle"
-    if client:
-        client.close()
+    return json.dumps([sidea, sideb])
 
 
 async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
@@ -36,16 +31,16 @@ async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
     player1 = player
     player2 = Player()
     await player2.create(race, "Computer", difficulty)
-    game = Game()
-    await game.create(players=[player1, player2], map=starcrat_map, server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
+    game = PlayerVSIA(starcrat_map, player, player2)
+    await game.create()
     await game.start_game()
     await game.simulate(step)
     await game.get_replay()
 
 
 async def player_vs_player(player1, player2, starcrat_map, step):
-    game = Game()
-    await game.create(players=[player1, player2], map=starcrat_map, server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
+    game = PlayerVSPlayer(starcrat_map, [player1, player2])
+    await game.create()
     await game.start_game()
     await game.simulate(step)
     await game.get_replay()
@@ -56,8 +51,8 @@ async def ia_vs_ia(starcrat_map, race, difficulty, step):
     await player1.create(race, "Computer", difficulty)
     player2 = Player()
     await player2.create(race, "Computer", difficulty)
-    game = Game()
-    await game.create(players=[player1, player2], map=starcrat_map, server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS)
+    game = IAVSIA(starcrat_map, SERVER_ROUTE, SERVER_ADDRESS, [player1, player2])
+    await game.create()
     await game.start_game()
     await game.simulate(step)
     await game.get_replay()
