@@ -1,5 +1,11 @@
 from sc2_wrapper.api_wrapper.player import Player
-from sc2_wrapper.api_wrapper.game import Replay, PlayerVSIA, PlayerVSPlayer, IAVSIA
+from sc2_wrapper.api_wrapper.game import (
+    Replay,
+    Classifier,
+    PlayerVSIA,
+    PlayerVSPlayer,
+    IAVSIA,
+)
 import json
 import sys
 
