@@ -7,9 +7,9 @@ from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_plac
 from sc2_wrapper.constants.ability_ids import AbilityId
 from sc2_wrapper.constants.unit_data import UNIT_DATA
 from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
-from sc2_wrapper.constants import UPGRADE_DATA
+from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
-from sc2_wrapper.game_data import UnitManager
+from sc2_wrapper.game_data.units import UnitManager
 from players.build_order import Player
 
 

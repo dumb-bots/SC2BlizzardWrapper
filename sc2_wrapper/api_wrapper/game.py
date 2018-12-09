@@ -5,7 +5,7 @@ import s2clientprotocol.common_pb2 as common
 import portpicker
 import websockets
 import uuid
-from sc2_wrapper.game_data import DecodedObservation
+from sc2_wrapper.game_data.observations import DecodedObservation
 
 
 class Game():

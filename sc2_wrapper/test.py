@@ -1,19 +1,21 @@
 from sc2_wrapper.client import *
 from os import listdir
 from os.path import isfile, join
-
+import asyncio
 from sc2_wrapper.players.actions import ActionsPlayer, DEMO_ACTIONS_9
 from pympler import tracker
+import sys
+
+sys.path.append("..")
 
 try:
-    from sc2_wrapper.local_settings import *
+    from local_settings import *
 except ImportError:
     pass
 
 tr = tracker.SummaryTracker()
 onlyfiles = [f for f in listdir(REPLAY_ROUTE) if isfile(join(REPLAY_ROUTE, f))]
 files = list(map(lambda x: REPLAY_ROUTE + x, onlyfiles))
-
 
 # def f(x):
 #     loop.run_until_complete(load_replay(x))
@@ -44,9 +46,23 @@ loop = asyncio.get_event_loop()
 #     )
 
 player1 = ActionsPlayer()
-player_args = {'race': "Terran", 'obj_type': "Human", 'server_route': SERVER_ROUTE, 'server_address': SERVER_ADDRESS,
-               'actions': DEMO_ACTIONS_9}
-loop.run_until_complete(play_vs_ia(player1, player_args, "Ladder2017Season3/InterloperLE.SC2Map", "Zerg", "VeryEasy", 100))
+player_args = {
+    "race": "Terran",
+    "obj_type": "Human",
+    "server_route": SERVER_ROUTE,
+    "server_address": SERVER_ADDRESS,
+    "actions": DEMO_ACTIONS_9,
+}
+loop.run_until_complete(
+    play_vs_ia(
+        player1,
+        player_args,
+        "Ladder2017Season3/InterloperLE.SC2Map",
+        "Zerg",
+        "VeryEasy",
+        100,
+    )
+)
 
 # while True:
 #     player1 = CBRPlayer()

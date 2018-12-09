@@ -3,9 +3,9 @@ import traceback
 from collections import namedtuple
 
 from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.game_data import decode_observation
+from sc2_wrapper.game_data.observations import decode_observation
 from sc2_wrapper.game_data.action import Action
-from sc2_wrapper.game_data import UnitManager
+from sc2_wrapper.game_data.units import UnitManager
 from .server import Server
 import portpicker
 import websockets
@@ -14,8 +14,17 @@ import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.query_pb2 as query
 
 
-class Player():
-    async def create(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
+class Player:
+    async def create(
+        self,
+        race,
+        type,
+        difficulty=None,
+        server=None,
+        server_route=None,
+        server_address=None,
+        **kwargs
+    ):
         self.race = race
         self.type = type
         self.difficulty = difficulty
@@ -26,9 +35,11 @@ class Player():
         self.decision_function = lambda x, y: None
         # if server:
         #     self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
-        if (not self.server) and (self.type != 'Computer'):
+        if (not self.server) and (self.type != "Computer"):
             port = portpicker.pick_unused_port()
-            self.server = await Server.get_server(server_route, server_address, str(port))
+            self.server = await Server.get_server(
+                server_route, server_address, str(port)
+            )
             # self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
 
     async def join_game(self, port_config):
@@ -42,7 +53,9 @@ class Player():
             ports.base_port = config["base_port"]
             ports.game_port = config["game_port"]
         request_payload.join_game.options.raw = True
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as websocket:
+        async with websockets.connect(
+            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+        ) as websocket:
             await websocket.send(request_payload.SerializeToString())
             response = await websocket.recv()
             response = api.Response.FromString(response)
@@ -51,7 +64,9 @@ class Player():
     async def leave_game(self):
         request_payload = api.Request(leave_game=api.RequestLeaveGame())
         self.server.status = "idle"
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as websocket:
+        async with websockets.connect(
+            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+        ) as websocket:
             await websocket.send(request_payload.SerializeToString())
             response = await websocket.recv()
             response = api.Response.FromString(response)
@@ -75,7 +90,8 @@ class Player():
                 for ab in ability.abilities:
                     if hasattr(ab, "requires_point"):
                         action = Action(
-                            unit=unit, ability_id=ab.ability_id, require_target=True)
+                            unit=unit, ability_id=ab.ability_id, require_target=True
+                        )
                     else:
                         action = Action(unit=unit, ability_id=ab.ability_id)
                     available_actions.append(action)
@@ -86,8 +102,9 @@ class Player():
 
     async def play(self, ws, observation):
         success = True
-        request_data = api.Request(data=api.RequestData(
-            ability_id=True, unit_type_id=True, upgrade_id=True))
+        request_data = api.Request(
+            data=api.RequestData(ability_id=True, unit_type_id=True, upgrade_id=True)
+        )
         await asyncio.wait_for(ws.send(request_data.SerializeToString()), 5)
         try:
             result = await asyncio.wait_for(ws.recv(), 5)
@@ -95,8 +112,7 @@ class Player():
             game_data = data_response.data
             # If game is still on
             if game_data.units:
-                obj = decode_observation(
-                    observation.observation.observation, game_data)
+                obj = decode_observation(observation.observation.observation, game_data)
                 await self.process_step(ws, obj)
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()
@@ -109,10 +125,12 @@ class Player():
         return True
 
     async def advance_time(self, step=100):
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
+        async with websockets.connect(
+            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+        ) as ws:
             request_payload = api.Request()
             request_payload.observation.disable_fog = True
-            DefaultObs = namedtuple('Observation', "status")
+            DefaultObs = namedtuple("Observation", "status")
             observation = DefaultObs(3)
 
             try:
@@ -120,7 +138,7 @@ class Player():
                 result = await asyncio.wait_for(ws.recv(), 5)
                 observation = api.Response.FromString(result)
                 successfull = True
-                if(not self.isComputer):
+                if not self.isComputer:
                     await self.play(ws, observation)
                 request_payload = api.Request()
                 request_payload.step.count = step
@@ -137,22 +155,29 @@ class Player():
         # TODO: Select according to race
         worker_id = "SCV"
 
-        idle_workers = game_state.player_units.filter(
-            name=worker_id, orders=[])
+        idle_workers = game_state.player_units.filter(name=worker_id, orders=[])
 
         # Returning workers
         harvest_return_abilities = [
-            ability.value for ability in AbilityId if ability.name.startswith("HARVEST_RETURN")]
+            ability.value
+            for ability in AbilityId
+            if ability.name.startswith("HARVEST_RETURN")
+        ]
         for ability_id in harvest_return_abilities:
             idle_workers += game_state.player_units.filter(
-                name=worker_id, orders__ability_id=ability_id)
+                name=worker_id, orders__ability_id=ability_id
+            )
 
         # Gathering workers
         harvest_return_abilities = [
-            ability.value for ability in AbilityId if ability.name.startswith("HARVEST_GATHER")]
+            ability.value
+            for ability in AbilityId
+            if ability.name.startswith("HARVEST_GATHER")
+        ]
         for ability_id in harvest_return_abilities:
             idle_workers += game_state.player_units.filter(
-                name=worker_id, orders__ability_id=ability_id)
+                name=worker_id, orders__ability_id=ability_id
+            )
 
         # Return manager with idle workers
         if number is not None:

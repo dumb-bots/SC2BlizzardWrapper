@@ -1,9 +1,12 @@
 from sc2_wrapper.api_wrapper.player import Player
 from sc2_wrapper.api_wrapper.game import Replay, PlayerVSIA, PlayerVSPlayer, IAVSIA
 import json
+import sys
+
+sys.path.append("..")
 
 try:
-    from sc2_wrapper.local_settings import *
+    from local_settings import *
 except ImportError:
     pass
 
