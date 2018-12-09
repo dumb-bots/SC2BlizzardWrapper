@@ -43,7 +43,7 @@ UNIT_DEPENDENCIES = {
 
     # UNITS ---------------------------------------------------
     # Workers
-    UnitTypeIds.SCV.value: [[UnitTypeIds.COMMANDCENTER]],
+    UnitTypeIds.SCV.value: [[UnitTypeIds.COMMANDCENTER.value]],
 
     # Barrack Units
     UnitTypeIds.MARINE.value: [[UnitTypeIds.BARRACKS.value], [UnitTypeIds.BARRACKSREACTOR.value],
