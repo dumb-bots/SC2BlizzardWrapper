@@ -5,6 +5,7 @@ from s2clientprotocol.common_pb2 import Point2D
 from s2clientprotocol.raw_pb2 import ActionRawUnitCommand, ActionRaw
 from s2clientprotocol.sc2api_pb2 import Action, RequestAction, Request, Response
 
+from api_wrapper.utils import HARVESTING_ORDERS
 from game_data.utils import euclidean_distance
 
 
@@ -18,6 +19,18 @@ class UnitManager(list):
 
     def __init__(self, units):
         super().__init__(units)
+
+    def __add__(self, manager):
+        if not isinstance(manager, UnitManager):
+            raise TypeError("Invalid type for UnitManager sum")
+        return UnitManager(super(UnitManager, self).__add__(manager))
+
+    def __getitem__(self, key):
+        super_value = super(UnitManager, self).__getitem__(key)
+        if isinstance(key, slice):
+            return UnitManager(super_value)
+        else:
+            return super_value
 
     async def give_order(self, ws, ability_id, target_unit=None, target_point=None, queue_command=False):
         """ Assign units to perform an Ability (with a particular target or not)
@@ -36,8 +49,7 @@ class UnitManager(list):
                                                                                                  y=target_point[1]),
                                            unit_tags=self.values('tag', flat_list=True))
         else:
-            command = ActionRawUnitCommand(ability_id=ability_id, target_unit=(target_unit.get_attribute("pos").x,
-                                                                               target_unit.get_attribute("pos").y),
+            command = ActionRawUnitCommand(ability_id=ability_id, target_unit_tag=target_unit.tag,
                                            unit_tags=self.values('tag', flat_list=True))
         request = Request(action=RequestAction(actions=[Action(action_raw=ActionRaw(
             unit_command=command))]))
@@ -207,6 +219,34 @@ class Unit:
     def __repr__(self):
         return "<Unit {} {}>".format(self.name, self.tag)
 
+    def __getattribute__(self, attribute):
+        try:
+            return super(Unit, self).__getattribute__(attribute)
+        except AttributeError:
+            # Not directly related
+            pass
+
+        # Try internal objects
+        try:
+            return self.proto_unit.__getattribute__(attribute)
+        except AttributeError:
+            # Not in proto's unit
+            pass
+
+        # Try unit data information
+        try:
+            # If attribute not in internal proto_unit_data raise AttributeError
+            return self.proto_unit_data.__getattribute__(attribute)
+        except AttributeError:
+            # Not in proto's unit data
+            pass
+
+        # Check extra calculated info
+        try:
+            return self.extra_info[attribute]
+        except KeyError:
+            raise AttributeError("Unit has no attribute {}".format(attribute))
+
     @property
     def tag(self):
         return self.proto_unit.tag
@@ -237,9 +277,11 @@ class Unit:
     @property
     def energy(self):
         return self.proto_unit.energy, self.proto_unit.energy_max
+
     @property
     def display(self):
         return self.proto_unit.display_type
+
     def extra_info_method(self, method, method_kwargs):
         """ Set an internal method execution's result as extra info for manager's queries
             NOTE: To access the internally calculated attributes the key is
@@ -289,6 +331,19 @@ class Unit:
         position_0 = (self_pos.x, self_pos.y, self_pos.z)
         return distance_calc(position_0, position)
 
+    def unit_availability(self):
+        # Harvesting ability
+        orders_abilities = [order.ability_id for order in self.orders]
+
+        # Determine availability
+        if not self.orders:
+            availability_level = 0
+        elif set(orders_abilities) & set(HARVESTING_ORDERS):
+            availability_level = 1
+        else:
+            availability_level = 2
+        return availability_level
+
     def available_abilities(self):
         available_abilities = self.extra_info.get('last_available_abilities')
         if available_abilities is None:
@@ -308,32 +363,7 @@ class Unit:
                 return unit_attribute.__getattribute__(attribute_elements[1])
 
     def get_attribute(self, attribute):
-        try:
-            return self.__getattribute__(attribute)
-        except AttributeError:
-            # Not directly related
-            pass
-
-        # Try internal objects
-        try:
-            return self.proto_unit.__getattribute__(attribute)
-        except AttributeError:
-            # Not in proto's unit
-            pass
-
-        # Try unit data information
-        try:
-            # If attribute not in internal proto_unit_data raise AttributeError
-            return self.proto_unit_data.__getattribute__(attribute)
-        except AttributeError:
-            # Not in proto's unit data
-            pass
-
-        # Check extra calculated info
-        try:
-            return self.extra_info[attribute]
-        except KeyError:
-            raise AttributeError("Unit has no attribute {}".format(attribute))
+        return self.__getattribute__(attribute)
 
     def to_dict(self):
         return {
