@@ -17,17 +17,18 @@ tr = tracker.SummaryTracker()
 onlyfiles = [f for f in listdir(REPLAY_ROUTE) if isfile(join(REPLAY_ROUTE, f))]
 files = list(map(lambda x: REPLAY_ROUTE + x, onlyfiles))
 
-# def f(x):
-#     loop.run_until_complete(load_replay(x))
+
+def f(x):
+    loop.run_until_complete(load_replay(x))
 
 
 # THREADS = 1
 loop = asyncio.get_event_loop()
-# try:
-#     print(f(files[0]))
-# finally:
-#     loop.close()
-# tr.print_diff()
+try:
+    print(f(files[0]))
+finally:
+    loop.close()
+tr.print_diff()
 # while True:
 #     player1 = RandomPlayer()
 #     loop.run_until_complete(

@@ -276,7 +276,10 @@ class Replay(Game):
                 request_payload = api.Request()
                 request_payload.observation.disable_fog = False
                 await ws.send(request_payload.SerializeToString())
-                result = await ws.recv()
+                try:
+                    result = await ws.recv()
+                except Exception:
+                    continue
                 response = api.Response.FromString(result)
 
                 request_data = api.Request(
