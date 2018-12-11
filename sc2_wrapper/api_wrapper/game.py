@@ -269,48 +269,50 @@ class Replay(Game):
 
     async def observe_replay(self, step=300, id=0):
         cases = []
-        async with websockets.connect(
-            "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
-        ) as ws:
-            while self.status == "started" or self.status == "replay":
-                request_payload = api.Request()
-                request_payload.observation.disable_fog = False
-                await ws.send(request_payload.SerializeToString())
+
+        while self.status == "started" or self.status == "replay":
+            async with websockets.connect(
+                "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
+            ) as ws:
                 try:
+                    request_payload = api.Request()
+                    request_payload.observation.disable_fog = False
+                    await ws.send(request_payload.SerializeToString())
                     result = await ws.recv()
+
+                    response = api.Response.FromString(result)
+
+                    request_data = api.Request(
+                        data=api.RequestData(
+                            ability_id=True, unit_type_id=True, upgrade_id=True
+                        )
+                    )
+                    await ws.send(request_data.SerializeToString())
+                    result = await ws.recv()
+                    data_response = api.Response.FromString(result)
+                    game_data = data_response.data
+
+                    observation = DecodedObservation(
+                        response.observation.observation,
+                        game_data,
+                        list(response.observation.actions),
+                    )
+
+                    case = observation.to_case(self.replay_info)
+                    print(case["game_loop"])
+                    cases.append(case)
+                    request_payload = api.Request()
+                    request_payload.step.count = step
+                    await ws.send(request_payload.SerializeToString())
+                    result = await ws.recv()
+                    response = api.Response.FromString(result)
+                    if response.status == 4:
+                        self.status = "replay"
+                    else:
+                        self.status = "finished"
                 except Exception:
                     continue
-                response = api.Response.FromString(result)
-
-                request_data = api.Request(
-                    data=api.RequestData(
-                        ability_id=True, unit_type_id=True, upgrade_id=True
-                    )
-                )
-                await ws.send(request_data.SerializeToString())
-                result = await ws.recv()
-                data_response = api.Response.FromString(result)
-                game_data = data_response.data
-
-                observation = DecodedObservation(
-                    response.observation.observation,
-                    game_data,
-                    list(response.observation.actions),
-                )
-
-                case = observation.to_case(self.replay_info)
-                print(case["game_loop"])
-                cases.append(case)
-                request_payload = api.Request()
-                request_payload.step.count = step
-                await ws.send(request_payload.SerializeToString())
-                result = await ws.recv()
-                response = api.Response.FromString(result)
-                if response.status == 4:
-                    self.status = "replay"
-                else:
-                    self.status = "finished"
-            self.host.status = "idle"
+        self.host.status = "idle"
         result = {"metadata": self.replay_info, "cases": cases, "player_id": id - 1}
         return result
 
