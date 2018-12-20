@@ -234,6 +234,7 @@ class Replay(Game):
         self.host = await Server.get_server(self.server, self.address, str(port))
 
     async def load_replay(self, replay_file, id=0):
+        print(replay_file)
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
@@ -254,6 +255,7 @@ class Replay(Game):
                     metadata.replay_info.player_info[1].player_result.result,
                 ],
             }
+            print(self.replay_info)
             msg = api.Request(
                 start_replay=api.RequestStartReplay(
                     replay_path=replay_file,
