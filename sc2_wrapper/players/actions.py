@@ -1,10 +1,13 @@
+import itertools
 import traceback
+from functools import reduce
 
 from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
     return_missing_parent_upgrades
 from sc2_wrapper.constants.ability_ids import AbilityId
+from sc2_wrapper.constants.build_abilities import BUILD_ABILITY_UNIT
 from sc2_wrapper.constants.unit_data import UNIT_DATA
 from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
 from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
@@ -60,6 +63,7 @@ class Action:
 
     def get_action_state(self, game_state):
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
+        existing_units.union(self.units_in_build_queue(game_state))
 
         units_required, upgrades_required, minerals_missing, vespene_missing, food_missing = \
             self.check_state(game_state, existing_units)
@@ -102,16 +106,13 @@ class Action:
         # Create actions for required units
         for upgrade in upgrades_required:
             # Check if upgrade not in queue already
-            if upgrade in upgrades_queue or self.upgrade_in_game_queue(game_state, upgrade):
-                continue
-            else:
-                self.add_upgrade_actions(
-                    upgrade,
-                    game_state,
-                    units_queue,
-                    upgrades_queue,
-                    required_actions,
-                )
+            self.add_upgrade_actions(
+                upgrade,
+                game_state,
+                units_queue,
+                upgrades_queue,
+                required_actions,
+            )
 
     def add_build_dependencies(self, game_state, units_queue, upgrades_queue, units_required, required_actions):
         # Create actions for required units
@@ -211,6 +212,14 @@ class Action:
             # Add a build action for required unit
             required_actions.append((Build(unit_id), state))
             units_queue.append(unit_id)
+
+    def units_in_build_queue(self, game_state):
+        worker_orders = game_state.player_units.filter(name='SCV').values('orders', flat_list=True)
+        plain_worker_orders = itertools.chain(*worker_orders)
+        abilities_in_queue = [order.ability_id for order in plain_worker_orders]
+        units_in_queue = [BUILD_ABILITY_UNIT[ability_id] for ability_id in abilities_in_queue
+                          if BUILD_ABILITY_UNIT.get(ability_id)]
+        return set(units_in_queue)
 
 
 # Building Actions -------------------------------
