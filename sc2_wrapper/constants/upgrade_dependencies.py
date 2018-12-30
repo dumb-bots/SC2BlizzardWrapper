@@ -26,11 +26,38 @@ UPGRADE_DEPENDENCIES = {
         ]
     },
 
+    UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value: {
+        'upgrade': None,
+        'buildings': [
+            UnitTypeIds.ENGINEERINGBAY.value,
+        ]
+    },
+    UpgradeIds.TERRANINFANTRYARMORSLEVEL2.value: {
+        'upgrade': UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value,
+        'buildings': [
+            UnitTypeIds.ARMORY.value,
+            UnitTypeIds.ENGINEERINGBAY.value,
+        ]
+    },
+    UpgradeIds.TERRANINFANTRYARMORSLEVEL3.value: {
+        'upgrade': UpgradeIds.TERRANINFANTRYARMORSLEVEL2.value,
+        'buildings': [
+            UnitTypeIds.ARMORY.value,
+            UnitTypeIds.ENGINEERINGBAY.value,
+        ]
+    },
+
     UpgradeIds.STIMPACK.value: {
         'upgrade': None,
         'buildings': [
             UnitTypeIds.BARRACKSTECHLAB.value,
         ]
-    }
+    },
 
+    UpgradeIds.SHIELDWALL.value: {
+        'upgrade': None,
+        'buildings': [
+            UnitTypeIds.BARRACKSTECHLAB.value,
+        ]
+    },
 }

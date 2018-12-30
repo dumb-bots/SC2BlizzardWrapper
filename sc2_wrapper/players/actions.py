@@ -125,14 +125,16 @@ class Action:
             else:
                 amount -= reduced
 
-            self.add_build_actions(
-                unit_id,
-                amount,
-                game_state,
-                units_queue,
-                upgrades_queue,
-                required_actions,
-            )
+            building_stuck = len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
+            if not building_stuck:
+                self.add_build_actions(
+                    unit_id,
+                    amount,
+                    game_state,
+                    units_queue,
+                    upgrades_queue,
+                    required_actions,
+                )
 
     def add_upgrade_actions(self, upgrade, game_state, units_queue, upgrades_queue, required_actions,):
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
@@ -199,6 +201,7 @@ class Action:
         action_required = Build(unit_id)
 
         # Add unit dependencies
+        units_queue.append(unit_id)
         state, _required_units = action_required.determine_action_state(game_state, units_queue, upgrades_queue)
         required_actions += _required_units
         # Added requirements to queue
@@ -211,7 +214,6 @@ class Action:
 
             # Add a build action for required unit
             required_actions.append((Build(unit_id), state))
-            units_queue.append(unit_id)
 
     def units_in_build_queue(self, game_state):
         worker_orders = game_state.player_units.filter(name='SCV').values('orders', flat_list=True)
@@ -367,7 +369,7 @@ class UnitAction(Action):
         target = {}
         if self.target_unit:
             # Get targeted unit data
-            unit_type = self.target_unit.get("type")
+            unit_types = self.target_unit.get("types")
             index = self.target_unit.get("index", 0)
             alignment = self.target_unit.get("alignment")
 
@@ -380,7 +382,8 @@ class UnitAction(Action):
                 selected_set = game_state.neutral_units
 
             # TODO: Add distance to starting point
-            filtered_units = selected_set.filter(unit_type=unit_type)
+            # Types
+            filtered_units = selected_set.filter(unit_type__in=unit_types)
             targeted_unit = filtered_units[index]
 
             if self.target_unit.get("action_pos"):
@@ -402,22 +405,40 @@ class UnitAction(Action):
 
         # Get units performing the action
         base_manager = UnitManager([])
-        for unit_type, amount in self.unit_group.items():
-            units = game_state.player_units.filter(unit_type=unit_type)
+
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
+
+        if query_params:
+            base_manager = game_state.player_units.filter(**query_params)
             if distance_args:
-                units = units.add_calculated_values(distance_to=distance_args)
-            base_manager += units[:amount]
+                base_manager = base_manager.add_calculated_values(distance_to=distance_args)
+
+        elif composition:
+            for unit_type, amount in composition.items():
+                units = game_state.player_units.filter(unit_type=unit_type)
+                if distance_args:
+                    units = units.add_calculated_values(distance_to=distance_args)
+                base_manager += units[:amount]
 
         return base_manager
 
     def return_units_required(self, game_state, existing_units):
-        required_units = {}
-        for unit_type, amount in self.unit_group.items():
-            existing = len(game_state.player_units.filter(unit_type=unit_type, build_progress=1))
-            missing = amount - existing
-            if missing > 0:
-                required_units[unit_type] = missing
-        return required_units
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
+
+        if query_params:
+            return {}
+        elif composition:
+            required_units = {}
+            for unit_type, amount in composition.items():
+                existing = len(game_state.player_units.filter(unit_type=unit_type, build_progress=1))
+                missing = amount - existing
+                if missing > 0:
+                    required_units[unit_type] = missing
+            return required_units
+        else:
+            return {}
 
     def return_upgrades_required(self, game_state):
         return return_current_ability_dependencies(self.ability_id, [u.upgrade_id for u in game_state.player_info.upgrades])
@@ -516,17 +537,32 @@ class Harvest(UnitAction):
             return []
 
         workers = UnitManager([])
-        for worker_type, worker_amount in self.unit_group.items():
-            type_workers = game_state.player_units.filter(
-                unit_type=worker_type
-            ).add_calculated_values(
+
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
+
+        if query_params:
+            type_workers = game_state.player_units.filter(**query_params).add_calculated_values(
                 distance_to={"unit": target_unit},
                 unit_availability={},
             ).sort_by('last_unit_availability', 'last_distance_to')
 
-            assignable_workers = min(missing_workers, worker_amount)
+            assignable_workers = missing_workers
             workers += type_workers[:assignable_workers]
             missing_workers -= assignable_workers
+
+        elif composition:
+            for worker_type, worker_amount in composition.items():
+                type_workers = game_state.player_units.filter(
+                    unit_type=worker_type
+                ).add_calculated_values(
+                    distance_to={"unit": target_unit},
+                    unit_availability={},
+                ).sort_by('last_unit_availability', 'last_distance_to')
+
+                assignable_workers = min(missing_workers, worker_amount)
+                workers += type_workers[:assignable_workers]
+                missing_workers -= assignable_workers
 
         return workers
 
@@ -535,7 +571,7 @@ class Upgrade(UnitAction):
     def __init__(self, upgrade_id):
         upgrade_data = UPGRADE_DATA[upgrade_id]
         upgrade_unit = get_upgrading_building(upgrade_id)
-        super().__init__(upgrade_data['ability_id'], {upgrade_unit: 1})
+        super().__init__(upgrade_data['ability_id'], {"composition": {upgrade_unit: 1}})
         self.upgrade_id = upgrade_id
 
     def return_upgrades_required(self, game_state):
@@ -624,8 +660,8 @@ DEMO_ACTIONS_6 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Train(UnitTypeIds.HELLION.value, 1) for _ in range(2)] + \
                  [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
                  [Train(UnitTypeIds.BATTLECRUISER.value, 2)]
-DEMO_ACTIONS_7 = [Attack({UnitTypeIds.MARINE.value: 10},
-                         target_unit={"type": UnitTypeIds.HATCHERY.value,
+DEMO_ACTIONS_7 = [Attack({"composition": {UnitTypeIds.MARINE.value: 10}},
+                         target_unit={"types": [UnitTypeIds.HATCHERY.value],
                                       "alignment": "enemy",
                                       "action_pos": True
                                       })
@@ -637,14 +673,17 @@ DEMO_ACTIONS_8 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
                  [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
                  [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
-                 [Attack({UnitTypeIds.BATTLECRUISER.value: 1},
-                         target_unit={"type": UnitTypeIds.HATCHERY.value,
+                 [Attack({"composition": {UnitTypeIds.BATTLECRUISER.value: 1}},
+                         target_unit={"types": [UnitTypeIds.HATCHERY.value],
                                       "alignment": "enemy",
                                       "action_pos": True
                                       })
                   ]
 DEMO_ACTIONS_9 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
-                 [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
+                 [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                  [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
-                 [UnitAction(ability_id=AbilityId.EFFECT_STIM_MARINE.value, unit_group={UnitTypeIds.MARINE.value: 5})]
+                 [UnitAction(
+                     ability_id=AbilityId.EFFECT_STIM_MARINE.value,
+                     unit_group={"composition": {UnitTypeIds.MARINE.value: 5}}
+                 )]

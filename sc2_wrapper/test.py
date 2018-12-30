@@ -6,10 +6,12 @@ from sc2_wrapper.players.actions import ActionsPlayer, DEMO_ACTIONS_9
 from pympler import tracker
 import sys
 
+from sc2_wrapper.players.rules import RulesPlayer, DEMO_RULES_ACTIONS_2, DEMO_RULES_2
+
 sys.path.append("..")
 
 try:
-    from local_settings import *
+    from sc2_wrapper.local_settings import *
 except ImportError:
     pass
 
@@ -45,13 +47,14 @@ loop = asyncio.get_event_loop()
 #         ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
 #     )
 
-player1 = ActionsPlayer()
+player1 = RulesPlayer()
 player_args = {
     "race": "Terran",
     "obj_type": "Human",
     "server_route": SERVER_ROUTE,
     "server_address": SERVER_ADDRESS,
-    "actions": DEMO_ACTIONS_9,
+    "actions": DEMO_RULES_ACTIONS_2,
+    "rules": DEMO_RULES_2,
 }
 loop.run_until_complete(
     play_vs_ia(
