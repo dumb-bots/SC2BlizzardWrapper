@@ -21,14 +21,17 @@ async def load_replay(replay_name, step=5000):
     game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
     await game.create()
     await game.load_replay(replay_name, id=2)
-    sidea = await game.observe_replay(step, 2)
+    sidea = game.observe_replay(step, 2)
+    async for obs in sidea:
+        yield obs
     game.host.status = "idle"
     game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
     await game.create()
     await game.load_replay(replay_name, id=1)
-    sideb = await game.observe_replay(step, 1)
+    sideb = game.observe_replay(step, 1)
     game.host.status = "idle"
-    return json.dumps([sidea, sideb])
+    async for obs in sideb:
+        yield obs
 
 
 async def classify(replay_name):

@@ -270,8 +270,6 @@ class Replay(Game):
             self.status = "started"
 
     async def observe_replay(self, step=300, id=0):
-        cases = []
-
         while self.status == "started" or self.status == "replay":
             async with websockets.connect(
                 "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
@@ -294,15 +292,14 @@ class Replay(Game):
                     data_response = api.Response.FromString(result)
                     game_data = data_response.data
 
-                    observation = DecodedObservation(
-                        response.observation.observation,
-                        game_data,
-                        list(response.observation.actions),
-                    )
+                    yield {
+                        "metadata": self.replay_info,
+                        "game_data": game_data,
+                        "observation": response.observation.observation,
+                        "actions": response.observation.actions
+                    }
 
-                    case = observation.to_case(self.replay_info)
-                    print(case["game_loop"])
-                    cases.append(case)
+                    print (observation.game_loop)
                     request_payload = api.Request()
                     request_payload.step.count = step
                     await ws.send(request_payload.SerializeToString())
@@ -315,8 +312,6 @@ class Replay(Game):
                 except Exception:
                     continue
         self.host.status = "idle"
-        result = {"metadata": self.replay_info, "cases": cases, "player_id": id - 1}
-        return result
 
 
 class Classifier(Replay):
