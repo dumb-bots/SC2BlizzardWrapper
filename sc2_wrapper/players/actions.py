@@ -368,23 +368,7 @@ class UnitAction(Action):
     def get_target_data(self, game_state):
         target = {}
         if self.target_unit:
-            # Get targeted unit data
-            unit_types = self.target_unit.get("types")
-            index = self.target_unit.get("index", 0)
-            alignment = self.target_unit.get("alignment")
-
-            # Select set
-            if alignment == "enemy":
-                selected_set = game_state.enemy_units
-            elif alignment == "own":
-                selected_set = game_state.player_units
-            else:
-                selected_set = game_state.neutral_units
-
-            # TODO: Add distance to starting point
-            # Types
-            filtered_units = selected_set.filter(unit_type__in=unit_types)
-            targeted_unit = filtered_units[index]
+            targeted_unit = self.filter_target_unit(game_state)
 
             if self.target_unit.get("action_pos"):
                 target['target_point'] = (targeted_unit.pos.x, targeted_unit.pos.y)
@@ -395,6 +379,28 @@ class UnitAction(Action):
             target['target_point'] = (self.target_point[0], self.target_point[1])
 
         return target
+
+    def filter_target_unit(self, game_state):
+        # Get targeted unit data
+        unit_ids = self.target_unit.get("ids")
+        unit_types = self.target_unit.get("types")
+        index = self.target_unit.get("index", 0)
+        alignment = self.target_unit.get("alignment")
+
+        # Select set
+        if alignment == "enemy":
+            selected_set = game_state.enemy_units
+        elif alignment == "own":
+            selected_set = game_state.player_units
+        else:
+            selected_set = game_state.neutral_units
+
+        # TODO: Add distance to starting point
+        if unit_ids:
+            filtered_units = selected_set.filter(tag__in=unit_ids)
+        else:
+            filtered_units = selected_set.filter(unit_type__in=unit_types)
+        return filtered_units[index]
 
     def get_action_units(self, game_state, target):
         distance_args = None
