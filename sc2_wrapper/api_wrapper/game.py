@@ -282,24 +282,14 @@ class Replay(Game):
 
                     response = api.Response.FromString(result)
 
-                    request_data = api.Request(
-                        data=api.RequestData(
-                            ability_id=True, unit_type_id=True, upgrade_id=True
-                        )
-                    )
-                    await ws.send(request_data.SerializeToString())
-                    result = await ws.recv()
-                    data_response = api.Response.FromString(result)
-                    game_data = data_response.data
-
                     yield {
                         "metadata": self.replay_info,
-                        "game_data": game_data,
                         "observation": response.observation.observation,
-                        "actions": response.observation.actions
+                        "actions": response.observation.actions,
+                        "id": id,
                     }
 
-                    print (response.observation.observation.game_loop)
+                    print(response.observation.observation.game_loop)
                     request_payload = api.Request()
                     request_payload.step.count = step
                     await ws.send(request_payload.SerializeToString())
