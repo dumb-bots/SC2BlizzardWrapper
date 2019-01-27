@@ -299,7 +299,7 @@ class Replay(Game):
                         "actions": response.observation.actions
                     }
 
-                    print (observation.game_loop)
+                    print (response.observation.observation.game_loop)
                     request_payload = api.Request()
                     request_payload.step.count = step
                     await ws.send(request_payload.SerializeToString())
@@ -309,7 +309,8 @@ class Replay(Game):
                         self.status = "replay"
                     else:
                         self.status = "finished"
-                except Exception:
+                except Exception as e:
+                    print(e)
                     continue
         self.host.status = "idle"
 
