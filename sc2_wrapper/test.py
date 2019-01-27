@@ -1,8 +1,8 @@
-from sc2_wrapper.client import *
+from client import *
 from os import listdir
 from os.path import isfile, join
 import asyncio
-from sc2_wrapper.players.actions import ActionsPlayer, DEMO_ACTIONS_9
+from players.actions import ActionsPlayer, DEMO_ACTIONS_9
 from pympler import tracker
 import sys
 
@@ -18,14 +18,15 @@ onlyfiles = [f for f in listdir(REPLAY_ROUTE) if isfile(join(REPLAY_ROUTE, f))]
 files = list(map(lambda x: REPLAY_ROUTE + x, onlyfiles))
 
 
-def f(x):
-    loop.run_until_complete(load_replay(x))
+async def f(x):
+    async for i in load_replay(x,12):
+        pass
 
 
 # THREADS = 1
 loop = asyncio.get_event_loop()
 try:
-    print(f(files[0]))
+    loop.run_until_complete(f(files[0]))
 finally:
     loop.close()
 tr.print_diff()
@@ -46,24 +47,24 @@ tr.print_diff()
 #         ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
 #     )
 
-player1 = ActionsPlayer()
-player_args = {
-    "race": "Terran",
-    "obj_type": "Human",
-    "server_route": SERVER_ROUTE,
-    "server_address": SERVER_ADDRESS,
-    "actions": DEMO_ACTIONS_9,
-}
-loop.run_until_complete(
-    play_vs_ia(
-        player1,
-        player_args,
-        "Ladder2017Season3/InterloperLE.SC2Map",
-        "Zerg",
-        "VeryEasy",
-        100,
-    )
-)
+# player1 = ActionsPlayer()
+# player_args = {
+#     "race": "Terran",
+#     "obj_type": "Human",
+#     "server_route": SERVER_ROUTE,
+#     "server_address": SERVER_ADDRESS,
+#     "actions": DEMO_ACTIONS_9,
+# }
+# loop.run_until_complete(
+#     play_vs_ia(
+#         player1,
+#         player_args,
+#         "Ladder2017Season3/InterloperLE.SC2Map",
+#         "Zerg",
+#         "VeryEasy",
+#         100,
+#     )
+# )
 
 # while True:
 #     player1 = CBRPlayer()
@@ -101,4 +102,4 @@ loop.run_until_complete(
 #     "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS))
 # loop.run_until_complete(player_vs_player(
 #     player1, player2, "Ladder2017Season3/InterloperLE.SC2Map", 24))
-loop.close()
+# loop.close()

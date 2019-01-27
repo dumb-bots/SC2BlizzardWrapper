@@ -2,10 +2,10 @@ import asyncio
 import traceback
 from collections import namedtuple
 
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.game_data.observations import decode_observation
-from sc2_wrapper.game_data.action import Action
-from sc2_wrapper.game_data.units import UnitManager
+from constants.ability_ids import AbilityId
+from game_data.observations import decode_observation
+from game_data.action import Action
+from game_data.units import UnitManager
 from .server import Server
 import portpicker
 import websockets

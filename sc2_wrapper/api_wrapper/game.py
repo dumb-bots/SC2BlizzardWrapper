@@ -5,9 +5,10 @@ import s2clientprotocol.common_pb2 as common
 import portpicker
 import websockets
 import uuid
-from sc2_wrapper.game_data.observations import DecodedObservation
-
-
+from  game_data.observations import DecodedObservation
+from google.protobuf.json_format import MessageToDict
+import json
+import time
 class Game:
     def __init__(self):
         self.status = "init"
@@ -177,8 +178,8 @@ class PlayerVSPlayer(PlayedGame):
                 player1 = request_payload.create_game.player_setup.add()
                 player1.type = dict(api.PlayerType.items())["Participant"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
+            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+            result = await asyncio.wait_for(ws.recv(), 5)
             response = api.Response.FromString(result)
             print(response)
             self.status = "created"
@@ -200,7 +201,7 @@ class PlayerVSPlayer(PlayedGame):
             for human in self.players:
                 tasks.append(asyncio.ensure_future(human.join_game(port_config)))
             for task in tasks:
-                response = await task
+                response = await asyncio.wait_for(task, 5)
                 if response.status != 3:
                     self.status = "launched"
             if self.status == "created":
@@ -269,30 +270,39 @@ class Replay(Game):
             response = api.Response.FromString(result)
             self.status = "started"
 
-    async def observe_replay(self, step=300, id=0):
+    async def observe_replay(self, step=24, id=0):
+        previous = None
         while self.status == "started" or self.status == "replay":
             async with websockets.connect(
-                "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
+                "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port), ping_interval=1,ping_timeout=1, close_timeout=1
             ) as ws:
                 try:
                     request_payload = api.Request()
                     request_payload.observation.disable_fog = False
-                    await ws.send(request_payload.SerializeToString())
-                    result = await ws.recv()
+                    await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
+                    result = await asyncio.wait_for(ws.recv(), timeout=1)
+
+
 
                     response = api.Response.FromString(result)
-
-                    yield {
-                        "metadata": self.replay_info,
-                        "observation": response.observation.observation,
-                        "actions": response.observation.actions,
+                    response = MessageToDict(response)
+                    response = str(response)
+                    response = response.replace("\'", "\"")
+                    response = response.replace("False", "false")
+                    response = response.replace("True", "true")
+                    json_dict = json.loads(response,encoding="UTF-8")
+                    if(previous != None):
+                        previous["actions"] = json_dict["observation"].get("actions", {}),
+                        yield previous
+                    previous = {
+                        "metadata" : self.replay_info,
+                        "observation": json_dict["observation"]["observation"]
                     }
-
-                    print(response.observation.observation.game_loop)
+                    print(json_dict["observation"]["observation"]["gameLoop"])
                     request_payload = api.Request()
                     request_payload.step.count = step
-                    await ws.send(request_payload.SerializeToString())
-                    result = await ws.recv()
+                    await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
+                    result = await asyncio.wait_for(ws.recv(),timeout=1)
                     response = api.Response.FromString(result)
                     if response.status == 4:
                         self.status = "replay"

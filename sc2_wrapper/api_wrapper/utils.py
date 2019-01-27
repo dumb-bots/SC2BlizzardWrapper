@@ -2,11 +2,11 @@ import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.query_pb2 as api_query
 
-from sc2_wrapper.constants.ability_dependencies import ABILITY_DEPENDENCIES
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.constants.unit_dependencies import UNIT_DEPENDENCIES
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
-from sc2_wrapper.constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
+from  constants.ability_dependencies import ABILITY_DEPENDENCIES
+from  constants.ability_ids import AbilityId
+from  constants.unit_dependencies import UNIT_DEPENDENCIES
+from  constants.unit_type_ids import UnitTypeIds
+from  constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 
 HARVESTING_ORDERS = [
     # SCV

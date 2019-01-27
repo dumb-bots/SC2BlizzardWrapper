@@ -1,5 +1,5 @@
-from sc2_wrapper.api_wrapper.player import Player
-from sc2_wrapper.api_wrapper.game import (
+from api_wrapper.player import Player
+from api_wrapper.game import (
     Replay,
     Classifier,
     PlayerVSIA,
@@ -17,7 +17,7 @@ except ImportError:
     pass
 
 
-async def load_replay(replay_name, step=5000):
+async def load_replay(replay_name, step=24):
     game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
     await game.create()
     await game.load_replay(replay_name, id=2)

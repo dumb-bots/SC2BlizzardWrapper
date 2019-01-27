@@ -5,8 +5,8 @@ from s2clientprotocol.common_pb2 import Point2D
 from s2clientprotocol.raw_pb2 import ActionRawUnitCommand, ActionRaw
 from s2clientprotocol.sc2api_pb2 import Action, RequestAction, Request, Response
 
-from sc2_wrapper.api_wrapper.utils import HARVESTING_ORDERS
-from sc2_wrapper.game_data.utils import euclidean_distance
+from  api_wrapper.utils import HARVESTING_ORDERS
+from  game_data.utils import euclidean_distance
 
 
 class UnitManager(list):

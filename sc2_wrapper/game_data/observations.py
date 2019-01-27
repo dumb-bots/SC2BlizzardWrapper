@@ -1,6 +1,6 @@
 import s2clientprotocol.raw_pb2 as api_data
 from PIL import Image
-from sc2_wrapper.game_data.units import UnitManager, Unit
+from  game_data.units import UnitManager, Unit
 
 
 class DecodedObservation:

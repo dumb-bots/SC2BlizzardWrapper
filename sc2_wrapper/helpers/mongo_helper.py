@@ -1,5 +1,5 @@
 from pymongo import UpdateOne
-from sc2_wrapper.local_settings import *
+from  local_settings import *
 
 def update_cases(cases):
     if cases["player_id"] == 0:

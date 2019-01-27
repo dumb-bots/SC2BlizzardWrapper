@@ -1,9 +1,9 @@
 from s2clientprotocol.raw_pb2 import Alliance
 
-from sc2_wrapper.api_wrapper.player import Player
-from sc2_wrapper.api_wrapper.utils import find_placement
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.game_data.units import UnitManager
+from  api_wrapper.player import Player
+from  api_wrapper.utils import find_placement
+from  constants.ability_ids import AbilityId
+from  game_data.units import UnitManager
 
 # TODO: Define all build abilities
 BUILD_ABILITIES = [ability.value for ability in AbilityId if ability.name.startswith("BUILD_")]
