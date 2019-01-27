@@ -286,7 +286,6 @@ class Replay(Game):
                         "metadata": self.replay_info,
                         "observation": response.observation.observation,
                         "actions": response.observation.actions,
-                        "id": id,
                     }
 
                     print(response.observation.observation.game_loop)
