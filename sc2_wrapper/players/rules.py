@@ -1,5 +1,6 @@
 from functools import reduce
 
+from sc2_wrapper.api_wrapper.utils import get_closing_enemies
 from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
 from sc2_wrapper.game_data.units import UnitManager
@@ -67,20 +68,53 @@ class Defend(UnitsRule):
         return filtered_units
 
     def match_query_output(self, game_state):
-        # TODO: Check race
-        town_halls = game_state.player_units.filter(unit_type__in=[
-            UnitTypeIds.COMMANDCENTER.value,
-            UnitTypeIds.ORBITALCOMMAND.value,
-            UnitTypeIds.PLANETARYFORTRESS.value,
-        ])
-        min_distance = 30
-        dangerous_units = UnitManager([])
-        for th in town_halls:
-            e_units = game_state.enemy_units\
-                .add_calculated_values(distance_to={"unit": th})\
-                .filter(last_distance_to__lte=min_distance)
-            dangerous_units += e_units
-        return dangerous_units.values('tag', flat_list=True)
+        return get_closing_enemies(game_state)
+
+
+class TerminateIdleUnits(UnitsRule):
+    def idle_units(self, game_state):
+        return game_state.player_units.filter(
+            mode=UnitManager.EXCLUDE_OR_MODE,
+            movement_speed=0, unit_type=UnitTypeIds.SCV.value,
+        )
+
+    def match(self, game_state, player):
+        no_enemy_th = not game_state.enemy_units.filter(
+            unit_type__in=[UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value],
+        )
+        return no_enemy_th and self.idle_units(game_state)
+
+    def next_actions(self, game_state):
+        enemy_targets = game_state.enemy_units.filter(movement_speed=0)
+        if not enemy_targets:
+            enemy_targets = game_state.enemy_units
+
+        return [Attack(
+            {"query": {"tag__in": self.idle_units(game_state).values('tag', flat_list=True)}},
+            target_unit={
+                "ids": enemy_targets.values('tag', flat_list=True),
+                "alignment": "enemy",
+                "action_pos": True,
+            }
+        )]
+
+
+class DefendIdleUnits(TerminateIdleUnits):
+    def match_query_output(self, game_state):
+        return get_closing_enemies(game_state)
+
+    def match(self, game_state, player):
+        return self.match_query_output(game_state) and self.idle_units(game_state)
+
+    def next_actions(self, game_state):
+        return [Attack(
+            {"query": {"tag__in": self.idle_units(game_state).values('tag', flat_list=True)}},
+            target_unit={
+                "ids": self.match_query_output(game_state),
+                "alignment": "enemy",
+                "action_pos": True,
+            }
+        )]
 
 
 class RulesPlayer(ActionsPlayer):
@@ -144,18 +178,10 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
 DEMO_RULES_2 = [
     ActionsRule(
         {},
-        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)]
+        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(4)]
     ),
-    Defend(
-        {},
-        [Attack(
-            {"query": {"unit_type__in": [48, 33, 54]}},
-            target_unit={
-                "alignment": "enemy",
-                "action_pos": True,
-            }
-        )]
-    ),
+    DefendIdleUnits(None, None),
+    TerminateIdleUnits(None, None),
     ActionsRule(
         {},
         [Attack(

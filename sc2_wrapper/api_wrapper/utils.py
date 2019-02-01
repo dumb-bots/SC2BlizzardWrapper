@@ -276,3 +276,21 @@ def return_upgrade_building_requirements(
         units_required.append(unit)
         new_existing_units += units_required
     return units_required
+
+
+def get_closing_enemies(game_state):
+    from sc2_wrapper.game_data.units import UnitManager
+
+    town_halls = game_state.player_units.filter(unit_type__in=[
+        UnitTypeIds.COMMANDCENTER.value,
+        UnitTypeIds.ORBITALCOMMAND.value,
+        UnitTypeIds.PLANETARYFORTRESS.value,
+    ])
+    min_distance = 30
+    dangerous_units = UnitManager([])
+    for th in town_halls:
+        e_units = game_state.enemy_units \
+            .add_calculated_values(distance_to={"unit": th}) \
+            .filter(last_distance_to__lte=min_distance)
+        dangerous_units += e_units
+    return dangerous_units.values('tag', flat_list=True)

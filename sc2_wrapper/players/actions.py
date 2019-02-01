@@ -16,6 +16,10 @@ from sc2_wrapper.game_data.units import UnitManager
 from sc2_wrapper.players.build_order import Player
 
 
+class UnitDestroyed(Exception):
+    pass
+
+
 class Action:
     MISSING_DEPENDENCIES = 'missing_dependencies'
     MISSING_RESOURCES = 'missing_resources'
@@ -398,6 +402,8 @@ class UnitAction(Action):
         # TODO: Add distance to starting point
         if unit_ids:
             filtered_units = selected_set.filter(tag__in=unit_ids)
+            if not filtered_units:
+                raise UnitDestroyed()
         else:
             filtered_units = selected_set.filter(unit_type__in=unit_types)
         return filtered_units[index]
@@ -461,7 +467,9 @@ class UnitAction(Action):
             else:
                 # No units to perform action, return failure
                 return False
-        except Exception:
+        except UnitDestroyed:
+            return 1
+        except Exception as e:
             return False
 
 
