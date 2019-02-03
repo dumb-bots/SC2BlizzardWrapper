@@ -4,7 +4,10 @@ from sc2_wrapper.game_data.units import UnitManager, Unit
 
 
 class DecodedObservation:
-    def __init__(self, observation, game_data, actions=[]):
+    def __init__(self, observation, game_data, game_info, actions=()):
+        # Set game info
+        self.game_info = game_info.game_info
+
         # Set player data
         self.player_info = PlayerCommon(
             observation.player_common, observation.raw_data.player, game_data
@@ -167,9 +170,21 @@ class DecodedObservation:
             result.append(item)
         return result
 
+    def terrain_height(self, position):
+        terrain_height_data = self.game_info.start_raw.terrain_height
+        bytes_per_pixel = terrain_height_data.bits_per_pixel // 8
+        width = terrain_height_data.size.x
+        data = terrain_height_data.data
 
-def decode_observation(observation, game_data):
-    return DecodedObservation(observation, game_data)
+        x, y = position
+        index = -width * round(y) + round(x)
+        start = index * bytes_per_pixel
+        data = data[start: start + bytes_per_pixel]
+        return int.from_bytes(data, byteorder="little", signed=False)
+
+
+def decode_observation(observation, game_data, game_info):
+    return DecodedObservation(observation, game_data, game_info)
 
 
 class PlayerCommon:

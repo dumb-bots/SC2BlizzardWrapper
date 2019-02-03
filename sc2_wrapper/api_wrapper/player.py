@@ -110,9 +110,15 @@ class Player:
             result = await asyncio.wait_for(ws.recv(), 5)
             data_response = api.Response.FromString(result)
             game_data = data_response.data
+
+            request_game_info = api.Request(game_info=api.RequestGameInfo())
+            await asyncio.wait_for(ws.send(request_game_info.SerializeToString()), 5)
+            result = await asyncio.wait_for(ws.recv(), 5)
+            game_info_response = api.Response.FromString(result)
+
             # If game is still on
             if game_data.units:
-                obj = decode_observation(observation.observation.observation, game_data)
+                obj = decode_observation(observation.observation.observation, game_data, game_info_response)
                 await self.process_step(ws, obj)
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()

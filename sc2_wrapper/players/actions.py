@@ -2,10 +2,11 @@ import itertools
 import traceback
 from functools import reduce
 
-from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders, \
+from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, \
+    get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
-    return_missing_parent_upgrades
+    return_missing_parent_upgrades, group_resources
 from sc2_wrapper.constants.ability_ids import AbilityId
 from sc2_wrapper.constants.build_abilities import BUILD_ABILITY_UNIT
 from sc2_wrapper.constants.unit_data import UNIT_DATA
@@ -13,6 +14,7 @@ from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
 from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
 from sc2_wrapper.game_data.units import UnitManager
+from sc2_wrapper.game_data.utils import euclidean_distance
 from sc2_wrapper.players.build_order import Player
 
 
@@ -283,22 +285,7 @@ class Build(BuildingAction):
             # Get target point (for now TH1)
             # TODO: Check faction
             # Find placement
-            if self.placement:
-                placement = self.placement
-            else:
-                placement = None
-                th = game_state.player_units.filter(unit_type=UnitTypeIds.COMMANDCENTER.value)[0]
-                if self.unit_id in [UnitTypeIds.REFINERY.value]:
-                    geysers = select_related_gas(game_state, th)
-                    for geyser in geysers:
-                        target_point = geyser.pos.x, geyser.pos.y
-                        placement = await find_placement(ws, ability_id, target_point)
-                        if placement:
-                            target_unit = geyser
-                            break
-                else:
-                    target_point = th.pos.x, th.pos.y
-                    placement = await find_placement(ws, ability_id, target_point)
+            placement, target_unit = await self.find_building_placement(ability_id, game_state, target_unit, ws)
 
             # Select builder
             # TODO: Get closest builder
@@ -315,6 +302,51 @@ class Build(BuildingAction):
         except Exception:
             print(traceback.print_exc())
             return False
+
+    async def find_building_placement(self, ability_id, game_state, target_unit, ws):
+        if self.placement:
+            placement = self.placement
+        else:
+            placement = None
+            th = game_state.player_units.filter(unit_type=UnitTypeIds.COMMANDCENTER.value)[0]
+            if self.unit_id in [UnitTypeIds.REFINERY.value]:
+                geysers = select_related_gas(game_state, th)
+                for geyser in geysers:
+                    target_point = geyser.pos.x, geyser.pos.y
+                    placement = await find_placement(ws, ability_id, target_point)
+                    if placement:
+                        target_unit = geyser
+                        break
+            else:
+                target_point = th.pos.x, th.pos.y
+                placement = await find_placement(ws, ability_id, target_point)
+        return placement, target_unit
+
+
+class Expansion(Build):
+    def __init__(self, point=None):
+        # TODO: Check race
+        unit_id = UnitTypeIds.COMMANDCENTER.value
+        super().__init__(unit_id, point)
+
+    async def find_building_placement(self, ability_id, game_state, target_unit, ws):
+        point = self._get_point(game_state)
+        clusters = filter(lambda c: euclidean_distance(c.center, point) > 10, group_resources(game_state))
+        closest_cluster = min(clusters, key=lambda cluster: euclidean_distance(point, cluster.center))
+        return closest_cluster.building_point(), target_unit
+
+    def _get_point(self, game_state):
+        point = self.placement
+        if point is None:
+            units = game_state.player_units.filter(unit_type__in=[
+                UnitTypeIds.COMMANDCENTER.value,
+                UnitTypeIds.ORBITALCOMMAND.value,
+                UnitTypeIds.PLANETARYFORTRESS.value
+            ])
+            if not units:
+                units = game_state.player_units
+            point = (units[0].pos.x, units[0].pos.y)
+        return point
 
 
 class Train(BuildingAction):
