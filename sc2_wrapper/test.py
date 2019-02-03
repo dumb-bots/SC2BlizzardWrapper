@@ -5,6 +5,8 @@ import asyncio
 from players.actions import ActionsPlayer, DEMO_ACTIONS_9
 from pympler import tracker
 import sys
+import json
+from pymongo import MongoClient
 
 sys.path.append("..")
 
@@ -19,8 +21,11 @@ files = list(map(lambda x: REPLAY_ROUTE + x, onlyfiles))
 
 
 async def f(x):
-    async for i in load_replay(x,12):
-        pass
+    client = MongoClient(compressors="zlib", zlibCompressionLevel=9)
+    db = client.test_database
+    collection = db.test
+    async for i in load_replay(x,24):
+        collection.insert_one(i)
 
 
 # THREADS = 1
