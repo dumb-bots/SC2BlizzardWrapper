@@ -17,6 +17,6 @@ setup(
         "websockets",
         "pympler",
     ],
-    packages=find_packages(),
+    packages=["sc2_wrapper", "sc2_wrapper.api_wrapper", "sc2_wrapper.constants", "sc2_wrapper.game_data", "sc2_wrapper.players"],
     zip_safe=False,
 )

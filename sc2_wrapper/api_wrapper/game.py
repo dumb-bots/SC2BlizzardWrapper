@@ -288,7 +288,8 @@ class Replay(Game):
             game_meta.pop("modNames")
             game_meta.pop("options")
             game_meta.pop("mapName")
-            game_meta.pop("localMapPath")
+            if("localMapPath" in game_meta.keys()):
+                game_meta.pop("localMapPath")
             game_meta.pop("playerInfo")
             game_meta.update(game_meta["startRaw"])
             game_meta.pop("startRaw")

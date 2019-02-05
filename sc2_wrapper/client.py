@@ -1,3 +1,10 @@
+import sys
+import os
+
+DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(DIR + "/sc2_wrapper")
+print(sys.path)
+
 from api_wrapper.player import Player
 from api_wrapper.game import (
     Replay,
@@ -7,10 +14,6 @@ from api_wrapper.game import (
     IAVSIA,
 )
 import json
-import sys
-
-sys.path.append("..")
-
 try:
     from local_settings import *
 except ImportError:
