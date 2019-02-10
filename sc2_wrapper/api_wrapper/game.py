@@ -10,6 +10,7 @@ from google.protobuf.json_format import MessageToDict
 import json
 import time
 import traceback
+from .utils import obs_to_case_replay, obs_to_case, units_by_tag
 
 class Game:
     def __init__(self):
@@ -270,6 +271,7 @@ class Replay(Game):
 
             await ws.send(msg.SerializeToString())
             result = await ws.recv()
+            print(result)
             response = api.Response.FromString(result)
 
             game_meta = api.Request(
@@ -284,104 +286,24 @@ class Replay(Game):
             game_meta = game_meta.replace("False", "false")
             game_meta = game_meta.replace("True", "true")
             game_meta = json.loads(game_meta,encoding="UTF-8")
-            game_meta = game_meta["gameInfo"]
-            game_meta.pop("modNames")
-            game_meta.pop("options")
-            game_meta.pop("mapName")
-            if("localMapPath" in game_meta.keys()):
-                game_meta.pop("localMapPath")
-            game_meta.pop("playerInfo")
-            game_meta.update(game_meta["startRaw"])
-            game_meta.pop("startRaw")
-            game_meta.pop("mapSize")
-            self.game_info = game_meta
-
-            self.status = "started"
-    def transform_json(self,dict, previous):
-        commons = dict["observation"]["playerCommon"]
-        dict["observation"].update(commons)
-        dict["observation"].pop("playerCommon")
-        dict["metadata"]["playerId"] = dict["observation"]["playerId"]
-        dict["observation"].pop("playerId")
-        dict["observation"].update(dict["observation"]["rawData"])
-        dict["observation"].pop("rawData")
-        dict["observation"]["player"].pop("camera")
-        dict["observation"].update(dict["observation"]["player"])
-        dict["observation"].pop("player")
-        dict["observation"].update(dict["observation"]["mapState"])
-        dict["observation"].pop("mapState")
-
-        units_by_id = {}
-        for unit in previous:
-            tag = unit["tag"]
-            unit.pop("tag")
-            unit.pop("isOnScreen")
-            if("isSelected" in unit.keys()):
-                unit.pop("isSelected")
-            unit = json.loads(json.dumps(unit))
-            if "orders" in unit.keys():
-                unit.pop("orders")
-            if "engagedTargetTag" in unit.keys():
-                unit.pop("engagedTargetTag")
-            if "addOnTag" in unit.keys():
-                unit.pop("addOnTag")
-            units_by_id[tag] = unit
-        for unit in dict["observation"]["units"]:
-            tag = unit["tag"]
-            unit.pop("tag")
-            unit.pop("isOnScreen")
-            if("isSelected" in unit.keys()):
-                unit.pop("isSelected")
-            unit = json.loads(json.dumps(unit))
-            if "orders" in unit.keys():
-                unit.pop("orders")
-            if "engagedTargetTag" in unit.keys():
-                unit.pop("engagedTargetTag")
-            if "addOnTag" in unit.keys():
-                unit.pop("addOnTag")
-            if tag not in units_by_id.keys():
-                units_by_id[tag] = unit
-
-
-        for unit in dict["observation"]["units"]:
-            if("orders" in unit.keys()):
-                for order in unit["orders"]:
-                    if("targetUnitTag" in order.keys()):
-                        unit = units_by_id.get(order["targetUnitTag"], {})
-                        if unit:
-                            order["unit"] = unit
-                        order.pop("targetUnitTag")
-            if "engagedTargetTag" in unit.keys():
-                unit["engagedTarget"] = units_by_id[unit["engagedTargetTag"]]
-                unit.pop("engagedTargetTag")
-            if "addOnTag" in unit.keys():
-                unit["addOn"] = units_by_id[unit["addOnTag"]]
-                unit.pop("addOnTag")
-                
- 
-        if("event" in dict["observation"].keys()):
-            dunits = []
-            for tag in dict["observation"]["event"]["deadUnits"]:
-                unit = units_by_id.get(tag, {})
-                if (unit):
-                    dunits.append(unit)
-            if dunits:
-                dict["observation"]["event"]["deadUnits"] = dunits
-            else:
-                dict["observation"].pop("event")
-        dict["observation"].pop("creep")
-        dict["observation"].pop("visibility")
-
-
-
-
-
-        return dict
-
+            if "gameInfo" in game_meta.keys():
+                game_meta = game_meta.get("gameInfo", None)
+                game_meta.pop("modNames")
+                game_meta.pop("options")
+                game_meta.pop("mapName")
+                if("localMapPath" in game_meta.keys()):
+                    game_meta.pop("localMapPath")
+                game_meta.pop("playerInfo")
+                game_meta.update(game_meta["startRaw"])
+                game_meta.pop("startRaw")
+                game_meta.pop("mapSize")
+                self.game_info = game_meta
+                self.status = "started"
+            return self.status == "started"
 
     async def observe_replay(self, step=24, id=0):
         previous = None
-        previous_units = []
+        game_units_by_tag = {}
         while self.status == "started" or self.status == "replay":
             async with websockets.connect(
                 "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port), ping_interval=1,ping_timeout=1, close_timeout=1
@@ -392,78 +314,19 @@ class Replay(Game):
                     await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
                     result = await asyncio.wait_for(ws.recv(), timeout=1)
 
-                    response = api.Response.FromString(result)
-                    response = MessageToDict(response)
-                    response = str(response)
-                    response = response.replace("\'", "\"")
-                    response = response.replace("False", "false")
-                    response = response.replace("True", "true")
-                    json_dict = json.loads(response,encoding="UTF-8")
-                   
-                    if(previous != None):
-                        units_by_tag = {}
-                        for unit in previous_units:
-                            newUnit = json.loads(json.dumps(unit))
-                            tag = newUnit["tag"]
-                            newUnit.pop("tag")
-                            newUnit.pop("isOnScreen")
-                            if("isSelected" in newUnit.keys()):
-                                newUnit.pop("isSelected")
-                            if "orders" in newUnit.keys():
-                                newUnit.pop("orders")
-                            if "engagedTargetTag" in newUnit.keys():
-                                newUnit.pop("engagedTargetTag")
-                            if "addOnTag" in newUnit.keys():
-                                newUnit.pop("addOnTag")
-                            units_by_tag[tag] = newUnit
-                        for unit in json_dict["observation"]["observation"]["rawData"]["units"]:
-                            newUnit = json.loads(json.dumps(unit))
-                            tag = newUnit["tag"]
-                            if tag not in units_by_tag.keys():
-                                newUnit.pop("tag")
-                                newUnit.pop("isOnScreen")
-                                if("isSelected" in newUnit.keys()):
-                                    newUnit.pop("isSelected")
-                                if "orders" in newUnit.keys():
-                                    newUnit.pop("orders")
-                                if "engagedTargetTag" in unit.keys():
-                                    unit.pop("engagedTargetTag")
-                                if "addOnTag" in unit.keys():
-                                    unit.pop("addOnTag")
-                                units_by_tag[tag] = newUnit
-                        actions = json_dict["observation"].get("actions", {})
-                        actions = list(filter(lambda x : "actionRaw" in x.keys(), actions))
-                        unitActions = list(filter(lambda x : "unitCommand" in x["actionRaw"].keys(),actions))
-                        castActions = list(filter(lambda x : "toggleAutocast" in x["actionRaw"].keys(), actions))
-                        unitActions = list(map(lambda x : x["actionRaw"]["unitCommand"], unitActions))
-                        castActions = list(map(lambda x : x["actionRaw"]["toggleAutocast"], castActions))
-                        for action in unitActions:
-                            units = []
-                            for tag in action["unitTags"]:
-                                units.append(units_by_tag[tag])
-                            action["units"] = units
-                            action.pop("unitTags")
-                            if "targetUnitTag" in action.keys():
-                                action["target"] = units_by_tag[action["targetUnitTag"]]
-                                action.pop("targetUnitTag")
-                        for action in castActions:
-                            units = []
-                            for tag in action["unitTags"]:
-                                units.append(units_by_tag[tag])
-                            action["units"] = units
-                            action.pop("unitTags")
-                        previous["actions"] = unitActions + castActions
-                        if previous["actions"]:
-                            yield previous
-                    previous = {
-                        "metadata" : self.replay_info,
-                        "observation": json_dict["observation"]["observation"],
-                        "mapMetadata": self.game_info["startLocations"]
-                    }
-                    anterior_units = previous_units
-                    previous_units = json.loads(json.dumps(previous["observation"]["rawData"]["units"]))
-                    previous = self.transform_json(previous, anterior_units)
-                    print(json_dict["observation"]["observation"]["gameLoop"])
+                    obs = api.Response.FromString(result)
+                    obs = MessageToDict(obs)
+                    obs = str(obs)
+                    obs = obs.replace("\'", "\"")
+                    obs = obs.replace("False", "false")
+                    obs = obs.replace("True", "true")
+                    obs = json.loads(obs,encoding="UTF-8")
+                    game_units_by_tag.update(units_by_tag(obs))
+                    actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
+                    if previous:
+                        previous["actions"] = actual["actions"]
+                        yield previous
+                    previous = actual
                     request_payload = api.Request()
                     request_payload.step.count = step
                     await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
