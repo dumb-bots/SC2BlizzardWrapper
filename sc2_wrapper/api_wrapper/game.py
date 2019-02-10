@@ -325,6 +325,7 @@ class Replay(Game):
                     actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
                     if previous:
                         previous["actions"] = actual["actions"]
+                        previous["observation"].pop("playerId")
                         yield previous
                     previous = actual
                     request_payload = api.Request()
