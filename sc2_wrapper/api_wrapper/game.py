@@ -299,7 +299,9 @@ class Replay(Game):
                 game_meta.pop("mapSize")
                 self.game_info = game_meta
                 self.status = "started"
-            return self.status == "started"
+                return True
+            else:
+                return False
 
     async def observe_replay(self, step=24, id=0):
         previous = None
