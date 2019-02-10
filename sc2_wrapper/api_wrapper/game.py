@@ -233,6 +233,7 @@ class Replay(Game):
         self.address = address
         self.replay_info = None
         self.game_info = None
+        self.status = "started"
 
     async def create(self):
         port = portpicker.pick_unused_port()
@@ -270,10 +271,10 @@ class Replay(Game):
             )
 
             await ws.send(msg.SerializeToString())
+            time.sleep(1)
             result = await ws.recv()
-            print(result)
             response = api.Response.FromString(result)
-
+            print(response)
             game_meta = api.Request(
                 game_info=api.RequestGameInfo()
             )

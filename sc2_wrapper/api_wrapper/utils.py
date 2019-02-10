@@ -282,12 +282,12 @@ def return_upgrade_building_requirements(
 
 def obs_to_case(obs, game_info):
     resumed_units = []
-    units = obs["observation"]["observation"]["rawData"]["units"]
+    units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
         if unit["alliance"] != "Neutral":
             resumed_units.append(
                 {
-                    "type": unit["unitType"],
+                    "type": unit.get("unitType",0),
                     "display": unit["displayType"],
                     "alliance": unit["alliance"],
                     "position": {
@@ -296,7 +296,7 @@ def obs_to_case(obs, game_info):
                         "z": round(unit["pos"]["z"])
                     },
                     "health": round(unit.get("health",0) / unit.get("healthMax",1) * 4),
-                    "buildProgress": round(unit["buildProgress"] * 4)
+                    "buildProgress": round(unit.get("buildProgress",0) * 4)
                 }
             )
     resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["position"]["z"], k["health"]))
@@ -309,7 +309,7 @@ def obs_to_case(obs, game_info):
     return observation
 
 def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
-    actions = obs["observation"].get("actions", [])
+    actions = obs.get("observation",{}).get("actions", [])
     obs = obs_to_case(obs, game_info)
     resumed_actions = []
     p_id = int(obs["playerId"]) - 1
@@ -322,7 +322,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                 action = action["unitCommand"]
                 resumed_action = {
                     "id": action["abilityId"],
-                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action["unitTags"],[]))
+                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
                 if "targetWorldSpacePos" in action.keys():
                     resumed_action["targetPoint"] = {
@@ -335,8 +335,8 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                         resumed_action["targetUnit"] = targetUnit
             elif "toggleAutocast" in action.keys():
                 resumed_action = {
-                    "id": action["abilityId"],
-                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action["unitTags"],[]))
+                    "id": action.get("abilityId", None),
+                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
             if resumed_action:
                 resumed_action["games"] = 1 
@@ -360,7 +360,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
 
 def units_by_tag(obs):
     by_tag = {}
-    units = obs["observation"]["observation"]["rawData"]["units"]
+    units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
         if unit.get("tag",None):
             by_tag[unit["tag"]] = {

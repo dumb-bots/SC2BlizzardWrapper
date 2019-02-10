@@ -23,7 +23,15 @@ except ImportError:
 async def load_replay(replay_name, step=24):
     game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
     await game.create()
-    success = await game.load_replay(replay_name, id=2)
+    retries = 10
+    success = False
+    for i in range(0, retries):
+        try:
+            success = await game.load_replay(replay_name, id=2)
+            break
+        except Exception as e:
+            print(e)
+
     if success:
         sidea = game.observe_replay(step, 2)
         async for obs in sidea:
@@ -31,7 +39,12 @@ async def load_replay(replay_name, step=24):
         game.host.status = "idle"
         game = Replay(SERVER_ROUTE, SERVER_ADDRESS)
         await game.create()
-        await game.load_replay(replay_name, id=1)
+        for i in range(0, retries):
+            try:
+                success = await game.load_replay(replay_name, id=1)
+                break
+            except Exception as e:
+                print(e)
         sideb = game.observe_replay(step, 1)
         game.host.status = "idle"
         async for obs in sideb:
