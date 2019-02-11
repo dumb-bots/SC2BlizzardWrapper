@@ -97,7 +97,7 @@ class Player:
                     available_actions.append(action)
         return available_actions
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         pass
 
     async def play(self, ws, observation):
@@ -113,7 +113,7 @@ class Player:
             # If game is still on
             if game_data.units:
                 obj = decode_observation(observation.observation.observation, game_data)
-                await self.process_step(ws, obj)
+                await self.process_step(ws, obj, raw=(observation.observation.observation, game_data))
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()
                 # to_do_action = function(observation, alvailable_actions)
