@@ -8,6 +8,7 @@ import sys
 import json
 from players.cbr_algorithm import CBRAlgorithm
 from pymongo import MongoClient
+import requests
 
 sys.path.append("..")
 
@@ -36,23 +37,17 @@ loop = asyncio.get_event_loop()
 # finally:
 #     loop.close()
 # tr.print_diff()
+r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
+observations = r.json()
 while True:
     player1 = CBRAlgorithm()
     loop.run_until_complete(
         player1.create(
-            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=[]
-        )
-    )
-    player2 = CBRAlgorithm()
-    loop.run_until_complete(
-        player2.create(
-            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=[]
+            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=observations
         )
     )
     loop.run_until_complete(
-        player_vs_player(
-            player1, player2, "Ladder2017Season3/InterloperLE.SC2Map", 100
-        )
+        play_vs_ia(player1, {}, "InterloperLE.SC2Map", "Terran", "VeryHard", 24)
     )
 # for i in range(100):
 #     loop.run_until_complete(
