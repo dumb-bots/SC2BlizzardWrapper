@@ -1,6 +1,0 @@
-SERVER_ROUTE = "/home/sc2/dev/StarCraftII"
-SERVER_ADDRESS = "127.0.0.1"
-REPLAY_ROUTE = "/home/sc2/dev/StarCraftII/Replays/"
-DATABASE_NAME = "mongo"
-DATABASE_ROUTE = "localhost"
-DATABASE_PORT = 27017

@@ -4,11 +4,14 @@ import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.query_pb2 as api_query
 
-from sc2_wrapper.constants.ability_dependencies import ABILITY_DEPENDENCIES
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.constants.unit_dependencies import UNIT_DEPENDENCIES
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
-from sc2_wrapper.constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
+from  constants.ability_dependencies import ABILITY_DEPENDENCIES
+from  constants.ability_ids import AbilityId
+from  constants.unit_dependencies import UNIT_DEPENDENCIES
+from  constants.unit_type_ids import UnitTypeIds
+from  constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
+from google.protobuf.json_format import MessageToDict
+import json
+from functools import reduce
 
 HARVESTING_ORDERS = [
     # SCV
@@ -403,3 +406,98 @@ def group_resources(game_state):
         if not in_cluster:
             clusters.append(ResourceCluster(resource, game_state))
     return clusters
+
+def obs_to_case(obs, game_info):
+    resumed_units = []
+    units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
+    for unit in units:
+        if unit["alliance"] != "Neutral":
+            resumed_units.append(
+                {
+                    "type": unit.get("unitType",0),
+                    "display": unit["displayType"],
+                    "alliance": unit["alliance"],
+                    "position": {
+                        "x": round(unit["pos"]["x"]),
+                        "y": round(unit["pos"]["y"]),
+                        "z": round(unit["pos"]["z"])
+                    },
+                    "health": round(unit.get("health",0) / unit.get("healthMax",1) * 4),
+                    "buildProgress": round(unit.get("buildProgress",0) * 4)
+                }
+            )
+    resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["position"]["z"], k["health"]))
+    observation = obs["observation"]["observation"]["playerCommon"]
+    observation["loop"] = obs["observation"]["observation"]["gameLoop"]
+    observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
+    observation["upgrades"] = sorted(observation["upgrades"])
+    observation["units"] = resumed_units
+    observation["startingPoints"] = game_info["startLocations"]
+    return observation
+
+def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
+    actions = obs.get("observation",{}).get("actions", [])
+    obs = obs_to_case(obs, game_info)
+    resumed_actions = []
+    p_id = int(obs["playerId"]) - 1
+    result = replay_info["results"][p_id]
+    for action in actions:
+        action = action.get("actionRaw",None)
+        if action:
+            resumed_action = {}
+            if "unitCommand" in action.keys():
+                action = action["unitCommand"]
+                resumed_action = {
+                    "id": action["abilityId"],
+                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
+                }
+                if "targetWorldSpacePos" in action.keys():
+                    resumed_action["targetPoint"] = {
+                        "x" : round(action["targetWorldSpacePos"]["x"]),
+                        "y" : round(action["targetWorldSpacePos"]["y"])
+                    }
+                elif "targetUnitTag" in action.keys():
+                    targetUnit = units_by_tag.get(action["targetUnitTag"],None)
+                    if targetUnit:
+                        resumed_action["targetUnit"] = targetUnit
+            elif "toggleAutocast" in action.keys():
+                resumed_action = {
+                    "id": action.get("abilityId", None),
+                    "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
+                }
+            if resumed_action:
+                resumed_action["games"] = 1
+                resumed_action["wins"] = 1 if result  == 1 else 0
+                resumed_action["looses"] = 0 if result  == 1 else 1
+                resumed_actions.append(resumed_action)
+    if not actions:
+        resumed_actions = [{
+            "id": "idle",
+            "games": 1,
+            "wins": 1 if result  == 1 else 0,
+            "looses": 0 if result  == 1 else 1
+        }]
+    return {
+        "observation": obs,
+        "actions": resumed_actions,
+        "games": 1,
+        "wins": 1 if result  == 1 else 0,
+        "looses": 0 if result  == 1 else 1
+    }
+
+def units_by_tag(obs):
+    by_tag = {}
+    units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
+    for unit in units:
+        if unit.get("tag",None):
+            by_tag[unit["tag"]] = {
+                "type": unit.get("unitType",None),
+                "position":
+                {
+                    "x": round(unit["pos"]["x"]),
+                    "y": round(unit["pos"]["y"]),
+                    "z": round(unit["pos"]["z"])
+                }
+            }
+    return by_tag
+

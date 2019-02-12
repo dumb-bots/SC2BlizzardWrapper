@@ -2,17 +2,18 @@ import asyncio
 import traceback
 from collections import namedtuple
 
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.game_data.observations import decode_observation
-from sc2_wrapper.game_data.action import Action
-from sc2_wrapper.game_data.units import UnitManager
+from constants.ability_ids import AbilityId
+from game_data.observations import decode_observation
+from game_data.action import Action
+from game_data.units import UnitManager
 from .server import Server
 import portpicker
 import websockets
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.query_pb2 as query
-
+from google.protobuf.json_format import MessageToDict
+import json
 
 class Player:
     async def create(
@@ -97,7 +98,7 @@ class Player:
                     available_actions.append(action)
         return available_actions
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         pass
 
     async def play(self, ws, observation):
@@ -119,7 +120,35 @@ class Player:
             # If game is still on
             if game_data.units:
                 obj = decode_observation(observation.observation.observation, game_data, game_info_response)
-                await self.process_step(ws, obj)
+                obs = MessageToDict(observation)
+                obs = str(obs)
+                obs = obs.replace("\'", "\"")
+                obs = obs.replace("False", "false")
+                obs = obs.replace("True", "true")
+                obs = json.loads(obs,encoding="UTF-8")
+                game_meta = api.Request(
+                    game_info=api.RequestGameInfo()
+                )
+                await ws.send(game_meta.SerializeToString())
+                result = await ws.recv()
+                game_meta = api.Response.FromString(result)
+                game_meta = MessageToDict(game_meta)
+                game_meta = str(game_meta)
+                game_meta = game_meta.replace("\'", "\"")
+                game_meta = game_meta.replace("False", "false")
+                game_meta = game_meta.replace("True", "true")
+                game_meta = json.loads(game_meta,encoding="UTF-8")
+                game_meta = game_meta.get("gameInfo", None)
+                game_meta.pop("modNames")
+                game_meta.pop("options")
+                game_meta.pop("mapName")
+                if("localMapPath" in game_meta.keys()):
+                    game_meta.pop("localMapPath")
+                game_meta.pop("playerInfo")
+                game_meta.update(game_meta["startRaw"])
+                game_meta.pop("startRaw")
+                game_meta.pop("mapSize")
+                await self.process_step(ws, obj, raw=(obs, game_meta))
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()
                 # to_do_action = function(observation, alvailable_actions)

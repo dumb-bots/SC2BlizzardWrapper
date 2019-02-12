@@ -1,4 +1,4 @@
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
+from  constants.unit_type_ids import UnitTypeIds
 
 UNIT_DEPENDENCIES = {
     # --------------------- PROTOSS ---------------------------

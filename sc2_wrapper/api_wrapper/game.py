@@ -5,8 +5,12 @@ import s2clientprotocol.common_pb2 as common
 import portpicker
 import websockets
 import uuid
-from sc2_wrapper.game_data.observations import DecodedObservation
-
+from  game_data.observations import DecodedObservation
+from google.protobuf.json_format import MessageToDict
+import json
+import time
+import traceback
+from .utils import obs_to_case_replay, obs_to_case, units_by_tag
 
 class Game:
     def __init__(self):
@@ -49,32 +53,33 @@ class IAVSIA(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            for player in self.players:
-                player1 = request_payload.create_game.player_setup.add()
-                player1.type = dict(api.PlayerType.items())["Computer"]
-                player1.difficulty = dict(api.Difficulty.items())[player.difficulty]
-                player1.race = dict(common.Race.items())[player.race]
-                player.server = self.host
+                for player in self.players:
+                    player1 = request_payload.create_game.player_setup.add()
+                    player1.type = dict(api.PlayerType.items())["Computer"]
+                    player1.difficulty = dict(api.Difficulty.items())[player.difficulty]
+                    player1.race = dict(common.Race.items())[player.race]
+                    player.server = self.host
 
-            observer = request_payload.create_game.player_setup.add()
-            observer.type = dict(api.PlayerType.items())["Observer"]
+                observer = request_payload.create_game.player_setup.add()
+                observer.type = dict(api.PlayerType.items())["Observer"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
-
-            request_payload = api.Request()
-            request_payload.join_game.observed_player_id = 2
-            request_payload.join_game.options.raw = True
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            self.status = "started"
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                request_payload = api.Request()
+                request_payload.join_game.observed_player_id = 2
+                request_payload.join_game.options.raw = True
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                self.status = "started"
 
     async def simulate(self, step=300):
         async with websockets.connect(
@@ -108,32 +113,33 @@ class PlayerVSIA(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            player1 = request_payload.create_game.player_setup.add()
-            player1.type = dict(api.PlayerType.items())["Computer"]
-            player1.difficulty = dict(api.Difficulty.items())[self.computer.difficulty]
-            player1.race = dict(common.Race.items())[self.computer.race]
-            self.player.server = self.host
+                player1 = request_payload.create_game.player_setup.add()
+                player1.type = dict(api.PlayerType.items())["Computer"]
+                player1.difficulty = dict(api.Difficulty.items())[self.computer.difficulty]
+                player1.race = dict(common.Race.items())[self.computer.race]
+                self.player.server = self.host
 
-            player1 = request_payload.create_game.player_setup.add()
-            player1.type = dict(api.PlayerType.items())["Participant"]
+                player1 = request_payload.create_game.player_setup.add()
+                player1.type = dict(api.PlayerType.items())["Participant"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                request_payload = api.Request()
+                request_payload.join_game.race = dict(common.Race.items())[self.player.race]
 
-            request_payload = api.Request()
-            request_payload.join_game.race = dict(common.Race.items())[self.player.race]
-
-            request_payload.join_game.options.raw = True
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            self.status = "started"
+                request_payload.join_game.options.raw = True
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                self.status = "started"
 
     async def simulate(self, step=300):
         async with websockets.connect(
@@ -169,40 +175,42 @@ class PlayerVSPlayer(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            print(self.status)
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            # Create slots
-            for player in self.players:
-                player1 = request_payload.create_game.player_setup.add()
-                player1.type = dict(api.PlayerType.items())["Participant"]
+                # Create slots
+                for player in self.players:
+                    player1 = request_payload.create_game.player_setup.add()
+                    player1.type = dict(api.PlayerType.items())["Participant"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
-
-            tasks = []
-            port_config = {
-                "players_ports": [],
-                "shared_port": self.shared_port,
-                "base_port": self.base_port,
-                "game_port": self.game_port,
-            }
-            for human in self.players:
-                player_port = {
-                    "base_port": human.base_port,
-                    "game_port": human.game_port,
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                tasks = []
+                port_config = {
+                    "players_ports": [],
+                    "shared_port": self.shared_port,
+                    "base_port": self.base_port,
+                    "game_port": self.game_port,
                 }
-                port_config["players_ports"].append(player_port)
+                for human in self.players:
+                    player_port = {
+                        "base_port": human.base_port,
+                        "game_port": human.game_port,
+                    }
+                    port_config["players_ports"].append(player_port)
 
-            for human in self.players:
-                tasks.append(asyncio.ensure_future(human.join_game(port_config)))
-            for task in tasks:
-                response = await task
-                if response.status != 3:
-                    self.status = "launched"
+                for human in self.players:
+                    tasks.append(asyncio.ensure_future(human.join_game(port_config)))
+                for task in tasks:
+                    response = await asyncio.wait_for(task, 5)
+                    if response.status != 3:
+                        self.status = "launched"
             if self.status == "created":
                 self.status = "started"
 
@@ -228,12 +236,15 @@ class Replay(Game):
         self.server = server
         self.address = address
         self.replay_info = None
+        self.game_info = None
+        self.status = "started"
 
     async def create(self):
         port = portpicker.pick_unused_port()
         self.host = await Server.get_server(self.server, self.address, str(port))
 
     async def load_replay(self, replay_file, id=0):
+        print(replay_file)
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
@@ -254,6 +265,7 @@ class Replay(Game):
                     metadata.replay_info.player_info[1].player_result.result,
                 ],
             }
+            print(self.replay_info)
             msg = api.Request(
                 start_replay=api.RequestStartReplay(
                     replay_path=replay_file,
@@ -263,53 +275,79 @@ class Replay(Game):
             )
 
             await ws.send(msg.SerializeToString())
+            time.sleep(1)
             result = await ws.recv()
             response = api.Response.FromString(result)
-            self.status = "started"
+            print(response)
+            game_meta = api.Request(
+                game_info=api.RequestGameInfo()
+            )
+            await ws.send(game_meta.SerializeToString())
+            result = await ws.recv()
+            game_meta = api.Response.FromString(result)
+            game_meta = MessageToDict(game_meta)
+            game_meta = str(game_meta)
+            game_meta = game_meta.replace("\'", "\"")
+            game_meta = game_meta.replace("False", "false")
+            game_meta = game_meta.replace("True", "true")
+            game_meta = json.loads(game_meta,encoding="UTF-8")
+            if "gameInfo" in game_meta.keys():
+                game_meta = game_meta.get("gameInfo", None)
+                game_meta.pop("modNames")
+                game_meta.pop("options")
+                game_meta.pop("mapName")
+                if("localMapPath" in game_meta.keys()):
+                    game_meta.pop("localMapPath")
+                game_meta.pop("playerInfo")
+                game_meta.update(game_meta["startRaw"])
+                game_meta.pop("startRaw")
+                game_meta.pop("mapSize")
+                self.game_info = game_meta
+                self.status = "started"
+                return True
+            else:
+                return False
 
-    async def observe_replay(self, step=300, id=0):
-        cases = []
-        async with websockets.connect(
-            "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
-        ) as ws:
-            while self.status == "started" or self.status == "replay":
-                request_payload = api.Request()
-                request_payload.observation.disable_fog = False
-                await ws.send(request_payload.SerializeToString())
-                result = await ws.recv()
-                response = api.Response.FromString(result)
+    async def observe_replay(self, step=24, id=0):
+        previous = None
+        game_units_by_tag = {}
+        while self.status == "started" or self.status == "replay":
+            async with websockets.connect(
+                "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port), ping_interval=1,ping_timeout=1, close_timeout=1
+            ) as ws:
+                try:
+                    request_payload = api.Request()
+                    request_payload.observation.disable_fog = False
+                    await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
+                    result = await asyncio.wait_for(ws.recv(), timeout=1)
 
-                request_data = api.Request(
-                    data=api.RequestData(
-                        ability_id=True, unit_type_id=True, upgrade_id=True
-                    )
-                )
-                await ws.send(request_data.SerializeToString())
-                result = await ws.recv()
-                data_response = api.Response.FromString(result)
-                game_data = data_response.data
-
-                observation = DecodedObservation(
-                    response.observation.observation,
-                    game_data,
-                    list(response.observation.actions),
-                )
-
-                case = observation.to_case(self.replay_info)
-                print(case["game_loop"])
-                cases.append(case)
-                request_payload = api.Request()
-                request_payload.step.count = step
-                await ws.send(request_payload.SerializeToString())
-                result = await ws.recv()
-                response = api.Response.FromString(result)
-                if response.status == 4:
-                    self.status = "replay"
-                else:
-                    self.status = "finished"
-            self.host.status = "idle"
-        result = {"metadata": self.replay_info, "cases": cases, "player_id": id - 1}
-        return result
+                    obs = api.Response.FromString(result)
+                    obs = MessageToDict(obs)
+                    obs = str(obs)
+                    obs = obs.replace("\'", "\"")
+                    obs = obs.replace("False", "false")
+                    obs = obs.replace("True", "true")
+                    obs = json.loads(obs,encoding="UTF-8")
+                    game_units_by_tag.update(units_by_tag(obs))
+                    actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
+                    if previous:
+                        previous["actions"] = actual["actions"]
+                        previous["observation"].pop("playerId")
+                        yield previous
+                    previous = actual
+                    request_payload = api.Request()
+                    request_payload.step.count = step
+                    await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
+                    result = await asyncio.wait_for(ws.recv(),timeout=1)
+                    response = api.Response.FromString(result)
+                    if response.status == 4:
+                        self.status = "replay"
+                    else:
+                        self.status = "finished"
+                except Exception:
+                    print(traceback.format_exc())
+                    continue
+        self.host.status = "idle"
 
 
 class Classifier(Replay):

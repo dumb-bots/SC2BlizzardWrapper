@@ -1,4 +1,4 @@
-from sc2_wrapper.api_wrapper.player import Player
+from  api_wrapper.player import Player
 
 
 class RandomPlayer(Player):

@@ -3,8 +3,8 @@ from copy import deepcopy
 
 from s2clientprotocol.data_pb2 import Attribute
 
-from sc2_wrapper.constants import UNIT_DEPENDENCIES
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
+from  constants.unit_dependencies import UNIT_DEPENDENCIES
+from  constants.unit_type_ids import UnitTypeIds
 from players.build_order import BuildOrderPlayer, PlayerOrder
 
 

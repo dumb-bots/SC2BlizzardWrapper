@@ -1,5 +1,5 @@
-from sc2_wrapper.constants.upgrade_ids import UpgradeIds
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
+from  constants.upgrade_ids import UpgradeIds
+from  constants.unit_type_ids import UnitTypeIds
 
 
 UPGRADE_DEPENDENCIES = {
