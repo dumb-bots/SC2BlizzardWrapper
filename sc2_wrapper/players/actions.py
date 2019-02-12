@@ -1,22 +1,20 @@
 import itertools
 import traceback
-from functools import reduce
 
-from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, \
+from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, \
     get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
     return_missing_parent_upgrades, group_resources, ADDON_BUILDINGS
-from sc2_wrapper.constants.ability_ids import AbilityId
-from sc2_wrapper.constants.build_abilities import BUILD_ABILITY_UNIT
-from sc2_wrapper.constants.unit_data import UNIT_DATA
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
-from sc2_wrapper.constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
-from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
-from sc2_wrapper.constants.upgrade_ids import UpgradeIds
-from sc2_wrapper.game_data.units import UnitManager
-from sc2_wrapper.game_data.utils import euclidean_distance
-from sc2_wrapper.players.build_order import Player
+from constants.ability_ids import AbilityId
+from constants.build_abilities import BUILD_ABILITY_UNIT
+from constants.unit_data import UNIT_DATA
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_data import UPGRADE_DATA
+from constants.upgrade_ids import UpgradeIds
+from game_data.units import UnitManager
+from game_data.utils import euclidean_distance
+from players.build_order import Player
 
 
 class UnitDestroyed(Exception):

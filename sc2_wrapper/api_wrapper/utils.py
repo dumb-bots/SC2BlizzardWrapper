@@ -4,14 +4,13 @@ import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.query_pb2 as api_query
 
-from  constants.ability_dependencies import ABILITY_DEPENDENCIES
-from  constants.ability_ids import AbilityId
-from  constants.unit_dependencies import UNIT_DEPENDENCIES
-from  constants.unit_type_ids import UnitTypeIds
-from  constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
-from google.protobuf.json_format import MessageToDict
-import json
+from constants.ability_dependencies import ABILITY_DEPENDENCIES
+from constants.ability_ids import AbilityId
+from constants.unit_dependencies import UNIT_DEPENDENCIES
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
+
 
 HARVESTING_ORDERS = [
     # SCV
@@ -293,7 +292,7 @@ def return_upgrade_building_requirements(
 
 
 def get_closing_enemies(game_state):
-    from sc2_wrapper.game_data.units import UnitManager
+    from game_data.units import UnitManager
 
     town_halls = game_state.player_units.filter(unit_type__in=[
         UnitTypeIds.COMMANDCENTER.value,
@@ -327,12 +326,12 @@ class ResourceCluster:
 
     @property
     def mineral_fields(self):
-        from sc2_wrapper.game_data.units import UnitManager
+        from game_data.units import UnitManager
         return UnitManager(self._mineral_fields)
 
     @property
     def geysers(self):
-        from sc2_wrapper.game_data.units import UnitManager
+        from game_data.units import UnitManager
         return UnitManager(self._geysers)
 
     def unit_in_cluster(self, resource_unit, game_state):
@@ -407,6 +406,7 @@ def group_resources(game_state):
             clusters.append(ResourceCluster(resource, game_state))
     return clusters
 
+
 def obs_to_case(obs, game_info):
     resumed_units = []
     units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
@@ -434,6 +434,7 @@ def obs_to_case(obs, game_info):
     observation["units"] = resumed_units
     observation["startingPoints"] = game_info["startLocations"]
     return observation
+
 
 def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
     actions = obs.get("observation",{}).get("actions", [])
@@ -484,6 +485,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
         "wins": 1 if result  == 1 else 0,
         "looses": 0 if result  == 1 else 1
     }
+
 
 def units_by_tag(obs):
     by_tag = {}

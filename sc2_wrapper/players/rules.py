@@ -1,10 +1,10 @@
 from functools import reduce
 
-from sc2_wrapper.api_wrapper.utils import get_closing_enemies
-from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
-from sc2_wrapper.constants.upgrade_ids import UpgradeIds
-from sc2_wrapper.game_data.units import UnitManager
-from sc2_wrapper.players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion
+from api_wrapper.utils import get_closing_enemies
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_ids import UpgradeIds
+from game_data.units import UnitManager
+from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion
 
 
 class Rule:

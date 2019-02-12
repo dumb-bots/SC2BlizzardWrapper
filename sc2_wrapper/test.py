@@ -39,16 +39,18 @@ loop = asyncio.get_event_loop()
 # tr.print_diff()
 r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
 observations = r.json()
-while True:
-    player1 = CBRAlgorithm()
-    loop.run_until_complete(
-        player1.create(
-            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=observations
-        )
+# while True:
+
+player1 = CBRAlgorithm()
+loop.run_until_complete(
+    player1.create(
+        "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=observations
     )
-    loop.run_until_complete(
-        play_vs_ia(player1, {}, "InterloperLE.SC2Map", "Terran", "VeryHard", 24)
-    )
+)
+loop.run_until_complete(
+    play_vs_ia(player1, {}, "Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
+)
+
 # for i in range(100):
 #     loop.run_until_complete(
 #         ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
