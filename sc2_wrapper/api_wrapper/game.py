@@ -53,32 +53,33 @@ class IAVSIA(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            for player in self.players:
-                player1 = request_payload.create_game.player_setup.add()
-                player1.type = dict(api.PlayerType.items())["Computer"]
-                player1.difficulty = dict(api.Difficulty.items())[player.difficulty]
-                player1.race = dict(common.Race.items())[player.race]
-                player.server = self.host
+                for player in self.players:
+                    player1 = request_payload.create_game.player_setup.add()
+                    player1.type = dict(api.PlayerType.items())["Computer"]
+                    player1.difficulty = dict(api.Difficulty.items())[player.difficulty]
+                    player1.race = dict(common.Race.items())[player.race]
+                    player.server = self.host
 
-            observer = request_payload.create_game.player_setup.add()
-            observer.type = dict(api.PlayerType.items())["Observer"]
+                observer = request_payload.create_game.player_setup.add()
+                observer.type = dict(api.PlayerType.items())["Observer"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
-
-            request_payload = api.Request()
-            request_payload.join_game.observed_player_id = 2
-            request_payload.join_game.options.raw = True
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            self.status = "started"
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                request_payload = api.Request()
+                request_payload.join_game.observed_player_id = 2
+                request_payload.join_game.options.raw = True
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                self.status = "started"
 
     async def simulate(self, step=300):
         async with websockets.connect(
@@ -112,32 +113,33 @@ class PlayerVSIA(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            player1 = request_payload.create_game.player_setup.add()
-            player1.type = dict(api.PlayerType.items())["Computer"]
-            player1.difficulty = dict(api.Difficulty.items())[self.computer.difficulty]
-            player1.race = dict(common.Race.items())[self.computer.race]
-            self.player.server = self.host
+                player1 = request_payload.create_game.player_setup.add()
+                player1.type = dict(api.PlayerType.items())["Computer"]
+                player1.difficulty = dict(api.Difficulty.items())[self.computer.difficulty]
+                player1.race = dict(common.Race.items())[self.computer.race]
+                self.player.server = self.host
 
-            player1 = request_payload.create_game.player_setup.add()
-            player1.type = dict(api.PlayerType.items())["Participant"]
+                player1 = request_payload.create_game.player_setup.add()
+                player1.type = dict(api.PlayerType.items())["Participant"]
 
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                request_payload = api.Request()
+                request_payload.join_game.race = dict(common.Race.items())[self.player.race]
 
-            request_payload = api.Request()
-            request_payload.join_game.race = dict(common.Race.items())[self.player.race]
-
-            request_payload.join_game.options.raw = True
-            await ws.send(request_payload.SerializeToString())
-            result = await ws.recv()
-            response = api.Response.FromString(result)
-            self.status = "started"
+                request_payload.join_game.options.raw = True
+                await ws.send(request_payload.SerializeToString())
+                result = await ws.recv()
+                response = api.Response.FromString(result)
+                self.status = "started"
 
     async def simulate(self, step=300):
         async with websockets.connect(
@@ -173,40 +175,42 @@ class PlayerVSPlayer(PlayedGame):
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
-            request_payload = api.Request()
-            request_payload.create_game.local_map.map_path = self.map
+            print(self.status)
+            if self.status == "init":
+                request_payload = api.Request()
+                request_payload.create_game.local_map.map_path = self.map
 
-            # Create slots
-            for player in self.players:
-                player1 = request_payload.create_game.player_setup.add()
-                player1.type = dict(api.PlayerType.items())["Participant"]
+                # Create slots
+                for player in self.players:
+                    player1 = request_payload.create_game.player_setup.add()
+                    player1.type = dict(api.PlayerType.items())["Participant"]
 
-            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
-            result = await asyncio.wait_for(ws.recv(), 5)
-            response = api.Response.FromString(result)
-            print(response)
-            self.status = "created"
-
-            tasks = []
-            port_config = {
-                "players_ports": [],
-                "shared_port": self.shared_port,
-                "base_port": self.base_port,
-                "game_port": self.game_port,
-            }
-            for human in self.players:
-                player_port = {
-                    "base_port": human.base_port,
-                    "game_port": human.game_port,
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                response = api.Response.FromString(result)
+                print(response)
+                self.status = "created"
+            if self.status == "created":
+                tasks = []
+                port_config = {
+                    "players_ports": [],
+                    "shared_port": self.shared_port,
+                    "base_port": self.base_port,
+                    "game_port": self.game_port,
                 }
-                port_config["players_ports"].append(player_port)
+                for human in self.players:
+                    player_port = {
+                        "base_port": human.base_port,
+                        "game_port": human.game_port,
+                    }
+                    port_config["players_ports"].append(player_port)
 
-            for human in self.players:
-                tasks.append(asyncio.ensure_future(human.join_game(port_config)))
-            for task in tasks:
-                response = await asyncio.wait_for(task, 5)
-                if response.status != 3:
-                    self.status = "launched"
+                for human in self.players:
+                    tasks.append(asyncio.ensure_future(human.join_game(port_config)))
+                for task in tasks:
+                    response = await asyncio.wait_for(task, 5)
+                    if response.status != 3:
+                        self.status = "launched"
             if self.status == "created":
                 self.status = "started"
 

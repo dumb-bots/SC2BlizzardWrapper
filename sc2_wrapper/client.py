@@ -62,13 +62,20 @@ async def classify(replay_name):
 
 
 async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
-    await player.create(**player_args)
+    # await player.create(**player_args)
     player1 = player
     player2 = Player()
     await player2.create(race, "Computer", difficulty)
     game = PlayerVSIA(starcrat_map, player, player2)
     await game.create()
-    await game.start_game()
+    for i in range(0,20):
+        try:
+            await game.start_game()
+            if game.status == "started":
+                break
+        except Exception as e:
+            print(e)
+            continue
     await game.simulate(step)
     await game.get_replay()
 
@@ -76,7 +83,14 @@ async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
 async def player_vs_player(player1, player2, starcrat_map, step):
     game = PlayerVSPlayer(starcrat_map, [player1, player2])
     await game.create()
-    await game.start_game()
+    for i in range(0,20):
+        try:
+            await game.start_game()
+            if game.status == "started":
+                break
+        except Exception as e:
+            print(e)
+            continue
     await game.simulate(step)
     await game.get_replay()
 
@@ -88,6 +102,13 @@ async def ia_vs_ia(starcrat_map, race, difficulty, step):
     await player2.create(race, "Computer", difficulty)
     game = IAVSIA(starcrat_map, SERVER_ROUTE, SERVER_ADDRESS, [player1, player2])
     await game.create()
-    await game.start_game()
+    for i in range(0,20):
+        try:
+            await game.start_game()
+            if game.status == "started":
+                break
+        except Exception as e:
+            print(e)
+            continue
     await game.simulate(step)
     await game.get_replay()

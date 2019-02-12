@@ -6,13 +6,15 @@ import random
 from api_wrapper.utils import obs_to_case
 
 class CBRAlgorithm(ObjectivesPlayer):
-    async def create(self, race, obj_type, cases, server=None, server_route=None, server_address=None, **kwargs):
+    async def create(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None,cases=None,**kwargs):
         self.cases = cases
-        await super().create(race, obj_type, server, server_route, server_address, **kwargs)
+        await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         situation = obs_to_case(raw[0], raw[1])
+        print(situation["loop"])
         probabilities_per_case = {}
+        actions = []
         if self.cases:
             case_index = 0
             for case in cases:
@@ -43,10 +45,9 @@ class CBRAlgorithm(ObjectivesPlayer):
                     random_number_action = random.uniform(0, 1)
                     if random_number_action <= self.evaluate_action(action):
                         list_of_actions.append(action)
-                return list_of_actions
-            else:
-                return []
-        return []
+                actions = list_of_actions
+        print(actions)
+        
 
     #Returns the distance between two cases    
     def get_distance(self, situation, case):

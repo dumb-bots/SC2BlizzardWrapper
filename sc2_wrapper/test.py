@@ -6,6 +6,7 @@ from players.actions import ActionsPlayer, DEMO_ACTIONS_9
 from pympler import tracker
 import sys
 import json
+from players.cbr_algorithm import CBRAlgorithm
 from pymongo import MongoClient
 
 sys.path.append("..")
@@ -30,23 +31,29 @@ async def f(x):
 
 # THREADS = 1
 loop = asyncio.get_event_loop()
-try:
-    loop.run_until_complete(f(files[0]))
-finally:
-    loop.close()
-tr.print_diff()
-# while True:
-#     player1 = RandomPlayer()
-#     loop.run_until_complete(
-#         player1.create(
-#             "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS
-#         )
-#     )
-#     loop.run_until_complete(
-#         play_vs_ia(
-#             player1, "Ladder2017Season3/InterloperLE.SC2Map", "Zerg", "VeryHard", 100
-#         )
-#     )
+# try:
+#     loop.run_until_complete(f(files[0]))
+# finally:
+#     loop.close()
+# tr.print_diff()
+while True:
+    player1 = CBRAlgorithm()
+    loop.run_until_complete(
+        player1.create(
+            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=[]
+        )
+    )
+    player2 = CBRAlgorithm()
+    loop.run_until_complete(
+        player2.create(
+            "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=[]
+        )
+    )
+    loop.run_until_complete(
+        player_vs_player(
+            player1, player2, "Ladder2017Season3/InterloperLE.SC2Map", 100
+        )
+    )
 # for i in range(100):
 #     loop.run_until_complete(
 #         ia_vs_ia("Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
