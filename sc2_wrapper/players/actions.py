@@ -6,11 +6,12 @@ from sc2_wrapper.api_wrapper.utils import get_available_building_unit, find_plac
     get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
-    return_missing_parent_upgrades, group_resources
+    return_missing_parent_upgrades, group_resources, ADDON_BUILDINGS
 from sc2_wrapper.constants.ability_ids import AbilityId
 from sc2_wrapper.constants.build_abilities import BUILD_ABILITY_UNIT
 from sc2_wrapper.constants.unit_data import UNIT_DATA
 from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
+from sc2_wrapper.constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
 from sc2_wrapper.constants.upgrade_data import UPGRADE_DATA
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
 from sc2_wrapper.game_data.units import UnitManager
@@ -40,19 +41,19 @@ class Action:
     def return_units_required(self, game_state, existing_units):
         return {}
 
-    def return_upgrades_required(self, game_state):
+    def return_upgrades_required(self, existing_upgrades):
         return {}
 
     def return_resources_required(self, game_data):
         return 0, 0, 0
 
-    def check_state(self, game_state, existing_units):
+    def check_state(self, game_state, existing_units, existing_upgrades):
         minerals = game_state.player_info.minerals
         vespene = game_state.player_info.vespene
         food = game_state.player_info.food_cap - game_state.player_info.food_used
 
         units_required = self.return_units_required(game_state, existing_units)
-        upgrades_required = self.return_upgrades_required(game_state)
+        upgrades_required = self.return_upgrades_required(existing_upgrades)
         minerals_required, vespene_required, food_required = self.return_resources_required(game_state.game_data)
 
         minerals_missing = minerals - minerals_required
@@ -68,15 +69,17 @@ class Action:
         return game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True)
 
     def get_action_state(self, game_state):
-        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
-        existing_units.union(self.units_in_build_queue(game_state))
+        existing_units = game_state.player_units.values('unit_type', flat_list=True)
+        existing_units += self.units_in_build_queue(game_state)
+
+        existing_upgrades = {u.upgrade_id for u in game_state.player_info.upgrades}
 
         units_required, upgrades_required, minerals_missing, vespene_missing, food_missing = \
-            self.check_state(game_state, existing_units)
+            self.check_state(game_state, existing_units, existing_upgrades)
 
-        ready_units = set(self.get_units_ready_for_action(game_state))
+        ready_units = self.get_units_ready_for_action(game_state)
         missing_units = len(self.return_units_required(game_state, ready_units))
-        missing_upgrades = len(self.return_upgrades_required(game_state))
+        missing_upgrades = len(self.return_upgrades_required(existing_upgrades))
 
         # Determine action state
         if missing_units > 0 or missing_upgrades > 0:
@@ -111,14 +114,14 @@ class Action:
     def add_upgrade_dependencies(self, game_state, units_queue, upgrades_queue, upgrades_required, required_actions):
         # Create actions for required units
         for upgrade in upgrades_required:
-            # Check if upgrade not in queue already
-            self.add_upgrade_actions(
-                upgrade,
-                game_state,
-                units_queue,
-                upgrades_queue,
-                required_actions,
-            )
+            if upgrade not in upgrades_queue and not self.upgrade_in_game_queue(game_state, upgrade):
+                self.add_upgrade_actions(
+                    upgrade,
+                    game_state,
+                    units_queue,
+                    upgrades_queue,
+                    required_actions,
+                )
 
     def add_build_dependencies(self, game_state, units_queue, upgrades_queue, units_required, required_actions):
         # Create actions for required units
@@ -227,7 +230,7 @@ class Action:
         abilities_in_queue = [order.ability_id for order in plain_worker_orders]
         units_in_queue = [BUILD_ABILITY_UNIT[ability_id] for ability_id in abilities_in_queue
                           if BUILD_ABILITY_UNIT.get(ability_id)]
-        return set(units_in_queue)
+        return units_in_queue
 
 
 # Building Actions -------------------------------
@@ -242,12 +245,13 @@ class BuildingAction(Action):
 
     def return_units_required(self, game_state, existing_units):
         # For building, only requires 1 unit available
+        existing_units = self._check_addons(game_state, existing_units)
         try:
-            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, existing_units)}
+            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, set(existing_units))}
         except Exception as e:
             print(self.unit_id)
             print(existing_units)
-            print(e)
+            return []
 
     def return_resources_required(self, game_data):
         unit_data = game_data.units[self.unit_id]
@@ -256,6 +260,35 @@ class BuildingAction(Action):
         return unit_data.mineral_cost, \
                unit_data.vespene_cost, \
                unit_data.food_required or unit_data_patch.get('food_required', 0)
+
+    def _check_addons(self, game_state, existing_units):
+        if self.unit_id not in ADDON_BUILDINGS:
+            return existing_units
+
+        existing_units = self._check_addon_units(
+            UnitTypeIds.BARRACKS.value,
+            [UnitTypeIds.BARRACKSTECHLAB.value, UnitTypeIds.BARRACKSREACTOR.value],
+            game_state, existing_units
+        )
+        existing_units = self._check_addon_units(
+            UnitTypeIds.FACTORY.value,
+            [UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.FACTORYREACTOR.value],
+            game_state, existing_units
+        )
+        existing_units = self._check_addon_units(
+            UnitTypeIds.STARPORT.value,
+            [UnitTypeIds.STARPORTTECHLAB.value, UnitTypeIds.STARPORTREACTOR.value],
+            game_state, existing_units
+        )
+        return existing_units
+
+    def _check_addon_units(self, unit, addon_units, game_state, existing_units):
+        if self.unit_id in addon_units:
+            unit_count = existing_units.count(unit)
+            units_with_addons = len(game_state.player_units.filter(unit_type__in=addon_units))
+            if units_with_addons >= unit_count:
+                return [u for u in existing_units if u != unit]
+        return existing_units
 
 
 class Build(BuildingAction):
@@ -484,10 +517,12 @@ class UnitAction(Action):
         else:
             return {}
 
-    def return_upgrades_required(self, game_state):
-        return return_current_ability_dependencies(self.ability_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+    def return_upgrades_required(self, existing_upgrades):
+        return return_current_ability_dependencies(self.ability_id, existing_upgrades)
 
     async def perform_action(self, ws, game_state):
+        if isinstance(self, Upgrade):
+            print("WHY?")
         try:
             target = self.get_target_data(game_state)
             troops = self.get_action_units(game_state, target)
@@ -620,8 +655,8 @@ class Upgrade(UnitAction):
         super().__init__(upgrade_data['ability_id'], {"composition": {upgrade_unit: 1}})
         self.upgrade_id = upgrade_id
 
-    def return_upgrades_required(self, game_state):
-        return return_missing_parent_upgrades(self.upgrade_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+    def return_upgrades_required(self, existing_upgrades):
+        return return_missing_parent_upgrades(self.upgrade_id, existing_upgrades)
 
     def return_resources_required(self, game_data):
         mineral_cost = UPGRADE_DATA[self.upgrade_id]['mineral_cost']

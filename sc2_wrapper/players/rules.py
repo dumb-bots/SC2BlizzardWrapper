@@ -1,6 +1,6 @@
 from functools import reduce
 
-from sc2_wrapper.api_wrapper.utils import get_closing_enemies, group_resources
+from sc2_wrapper.api_wrapper.utils import get_closing_enemies
 from sc2_wrapper.constants.unit_type_ids import UnitTypeIds
 from sc2_wrapper.constants.upgrade_ids import UpgradeIds
 from sc2_wrapper.game_data.units import UnitManager
@@ -12,9 +12,18 @@ class Rule:
         self.condition_parameters = condition_parameters
         self.actions = actions
         self.burner = burner
+        self._activated = False
+
+    def _match(self, game_state, player):
+        return False
 
     def match(self, game_state, player):
-        pass
+        if self.burner and self._activated:
+            return False
+        match = self._match(game_state, player)
+        if match:
+            self._activated = True
+        return match
 
     def match_query_output(self, game_state):
         return None
@@ -31,7 +40,7 @@ class Rule:
 
 
 class ActionsRule(Rule):
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         action_count = {}
         for action in player.actions_queue:
             action_name = action.__class__.__name__
@@ -41,12 +50,12 @@ class ActionsRule(Rule):
 
 
 class UpgradesRule(Rule):
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         return not (self.condition_parameters - set([u.upgrade_id for u in game_state.player_info.upgrades]))
 
 
 class UnitsRule(Rule):
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         filtered_units = self.match_query_output(game_state)
         return self.condition_parameters['evaluation'](filtered_units)
 
@@ -58,12 +67,13 @@ class UnitsRule(Rule):
         return unit_set.filter(**self.condition_parameters['query_params'])
 
     def _update_action_params(self, action, game_state):
-        action.target_unit['ids'] = self.match_query_output(game_state)
+        if action.target_unit:
+            action.target_unit['ids'] = self.match_query_output(game_state)
         return action
 
 
 class Defend(UnitsRule):
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         filtered_units = self.match_query_output(game_state)
         return filtered_units
 
@@ -76,9 +86,9 @@ class TerminateIdleUnits(UnitsRule):
         return game_state.player_units.filter(
             mode=UnitManager.EXCLUDE_OR_MODE,
             movement_speed=0, unit_type=UnitTypeIds.SCV.value,
-        )
+        ).filter(orders__attlength=0)
 
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         no_enemy_th = not game_state.enemy_units.filter(
             unit_type__in=[UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value],
         )
@@ -103,7 +113,7 @@ class DefendIdleUnits(TerminateIdleUnits):
     def match_query_output(self, game_state):
         return get_closing_enemies(game_state)
 
-    def match(self, game_state, player):
+    def _match(self, game_state, player):
         return self.match_query_output(game_state) and self.idle_units(game_state)
 
     def next_actions(self, game_state):
@@ -165,28 +175,50 @@ DEMO_RULES_1 = [
 ]
 
 
-DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
-                       [Build(UnitTypeIds.BARRACKSREACTOR.value)] + \
-                       [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)] + \
+DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
+                       [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(2)] + \
+                       [Build(UnitTypeIds.REFINERY.value)] + \
+                       [Train(UnitTypeIds.MARINE.value, 1) for _ in range(40)] + \
+                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(10)] + \
                        [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(4)] + \
                        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(4)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value)] + \
-                       [Expansion()]
-                       # [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
+                       [Expansion()] + \
+                       [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
+                       [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
 
 DEMO_RULES_2 = [
     ActionsRule(
         {},
-        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(4)]
+        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(4)] +
+        [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(1)]
     ),
     DefendIdleUnits(None, None),
     TerminateIdleUnits(None, None),
+    UnitsRule(
+        {
+            "alignment": "player",
+            "query_params": {"unit_type": UnitTypeIds.REFINERY.value, "build_progress": 1},
+            "evaluation": lambda units: len(units) > 1,
+        },
+        [Harvest({"composition": {UnitTypeIds.SCV.value: 6}}, Harvest.VESPENE)],
+        burner=True,
+    ),
+    UnitsRule(
+        {
+            "alignment": "player",
+            "query_params": {"unit_type": UnitTypeIds.COMMANDCENTER.value, "build_progress": 1},
+            "evaluation": lambda units: len(units) > 1,
+        },
+        [Harvest({"composition": {UnitTypeIds.SCV.value: 10}}, Harvest.MINERAL)],
+        burner=True,
+    ),
     ActionsRule(
         {},
         [Attack(
-            {"query": {"unit_type__in": [48, 33, 54]}},
+            {"query": {"unit_type__in": [48, 33, 54, 51]}},
             target_unit={
                 "types": [UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value],
                 "alignment": "enemy",

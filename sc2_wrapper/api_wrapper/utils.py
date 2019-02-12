@@ -58,6 +58,12 @@ MINERAL_FIELD_IDS = [
     unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name
 ]
 
+ADDON_BUILDINGS = [
+    UnitTypeIds.BARRACKSTECHLAB.value, UnitTypeIds.BARRACKSREACTOR.value,
+    UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.FACTORYREACTOR.value,
+    UnitTypeIds.STARPORTTECHLAB.value, UnitTypeIds.STARPORTREACTOR.value,
+]
+
 
 def get_building_unit(unit_id):
     building_unit_types = set()
@@ -81,6 +87,8 @@ def get_available_builders(unit_id, game_state):
     available_builders = game_state.player_units.filter(
         unit_type__in=building_unit_types, build_progress=1
     )
+    if unit_id in ADDON_BUILDINGS:
+        available_builders = available_builders.filter(add_on_tag=0)
     if addon_types:
         addon_tags = game_state.player_units.filter(
             unit_type__in=addon_types, build_progress=1
