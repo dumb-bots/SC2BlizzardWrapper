@@ -148,10 +148,10 @@ class RulesPlayer(ActionsPlayer):
                 []
             )
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         passing_rules = [rule for rule in self.rules if rule.match(game_state, self)]
         self.apply_actions(game_state, passing_rules)
-        await super(RulesPlayer, self).process_step(ws, game_state, actions)
+        await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
 
 
 DEMO_RULES_ACTIONS_1 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \

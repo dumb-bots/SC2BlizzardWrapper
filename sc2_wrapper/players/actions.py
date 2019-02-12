@@ -519,8 +519,6 @@ class UnitAction(Action):
         return return_current_ability_dependencies(self.ability_id, existing_upgrades)
 
     async def perform_action(self, ws, game_state):
-        if isinstance(self, Upgrade):
-            print("WHY?")
         try:
             target = self.get_target_data(game_state)
             troops = self.get_action_units(game_state, target)
@@ -715,7 +713,7 @@ class ActionsPlayer(Player):
                 remaining_actions.append(action)
         return remaining_actions
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         new_actions = self.get_required_actions(game_state)
         self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
         print(new_actions)
