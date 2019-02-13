@@ -1,16 +1,24 @@
+import itertools
 import traceback
 
-from  api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, get_available_builders, \
+from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, \
+    get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
-    return_missing_parent_upgrades
-from  constants.ability_ids import AbilityId
-from  constants.unit_data import UNIT_DATA
-from  constants.unit_type_ids import UnitTypeIds
-from  constants.upgrade_data import UPGRADE_DATA
-from  constants.upgrade_ids import UpgradeIds
-from  game_data.units import UnitManager
-from  players.build_order import Player
+    return_missing_parent_upgrades, group_resources, ADDON_BUILDINGS
+from constants.ability_ids import AbilityId
+from constants.build_abilities import BUILD_ABILITY_UNIT
+from constants.unit_data import UNIT_DATA
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_data import UPGRADE_DATA
+from constants.upgrade_ids import UpgradeIds
+from game_data.units import UnitManager
+from game_data.utils import euclidean_distance
+from players.build_order import Player
+
+
+class UnitDestroyed(Exception):
+    pass
 
 
 class Action:
@@ -31,19 +39,19 @@ class Action:
     def return_units_required(self, game_state, existing_units):
         return {}
 
-    def return_upgrades_required(self, game_state):
+    def return_upgrades_required(self, existing_upgrades):
         return {}
 
     def return_resources_required(self, game_data):
         return 0, 0, 0
 
-    def check_state(self, game_state, existing_units):
+    def check_state(self, game_state, existing_units, existing_upgrades):
         minerals = game_state.player_info.minerals
         vespene = game_state.player_info.vespene
         food = game_state.player_info.food_cap - game_state.player_info.food_used
 
         units_required = self.return_units_required(game_state, existing_units)
-        upgrades_required = self.return_upgrades_required(game_state)
+        upgrades_required = self.return_upgrades_required(existing_upgrades)
         minerals_required, vespene_required, food_required = self.return_resources_required(game_state.game_data)
 
         minerals_missing = minerals - minerals_required
@@ -59,14 +67,17 @@ class Action:
         return game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True)
 
     def get_action_state(self, game_state):
-        existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
+        existing_units = game_state.player_units.values('unit_type', flat_list=True)
+        existing_units += self.units_in_build_queue(game_state)
+
+        existing_upgrades = {u.upgrade_id for u in game_state.player_info.upgrades}
 
         units_required, upgrades_required, minerals_missing, vespene_missing, food_missing = \
-            self.check_state(game_state, existing_units)
+            self.check_state(game_state, existing_units, existing_upgrades)
 
-        ready_units = set(self.get_units_ready_for_action(game_state))
+        ready_units = self.get_units_ready_for_action(game_state)
         missing_units = len(self.return_units_required(game_state, ready_units))
-        missing_upgrades = len(self.return_upgrades_required(game_state))
+        missing_upgrades = len(self.return_upgrades_required(existing_upgrades))
 
         # Determine action state
         if missing_units > 0 or missing_upgrades > 0:
@@ -101,10 +112,7 @@ class Action:
     def add_upgrade_dependencies(self, game_state, units_queue, upgrades_queue, upgrades_required, required_actions):
         # Create actions for required units
         for upgrade in upgrades_required:
-            # Check if upgrade not in queue already
-            if upgrade in upgrades_queue or self.upgrade_in_game_queue(game_state, upgrade):
-                continue
-            else:
+            if upgrade not in upgrades_queue and not self.upgrade_in_game_queue(game_state, upgrade):
                 self.add_upgrade_actions(
                     upgrade,
                     game_state,
@@ -124,14 +132,16 @@ class Action:
             else:
                 amount -= reduced
 
-            self.add_build_actions(
-                unit_id,
-                amount,
-                game_state,
-                units_queue,
-                upgrades_queue,
-                required_actions,
-            )
+            building_stuck = len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
+            if not building_stuck:
+                self.add_build_actions(
+                    unit_id,
+                    amount,
+                    game_state,
+                    units_queue,
+                    upgrades_queue,
+                    required_actions,
+                )
 
     def add_upgrade_actions(self, upgrade, game_state, units_queue, upgrades_queue, required_actions,):
         existing_units = set(game_state.player_units.values('unit_type', flat_list=True))
@@ -198,6 +208,7 @@ class Action:
         action_required = Build(unit_id)
 
         # Add unit dependencies
+        units_queue.append(unit_id)
         state, _required_units = action_required.determine_action_state(game_state, units_queue, upgrades_queue)
         required_actions += _required_units
         # Added requirements to queue
@@ -210,7 +221,14 @@ class Action:
 
             # Add a build action for required unit
             required_actions.append((Build(unit_id), state))
-            units_queue.append(unit_id)
+
+    def units_in_build_queue(self, game_state):
+        worker_orders = game_state.player_units.filter(name='SCV').values('orders', flat_list=True)
+        plain_worker_orders = itertools.chain(*worker_orders)
+        abilities_in_queue = [order.ability_id for order in plain_worker_orders]
+        units_in_queue = [BUILD_ABILITY_UNIT[ability_id] for ability_id in abilities_in_queue
+                          if BUILD_ABILITY_UNIT.get(ability_id)]
+        return units_in_queue
 
 
 # Building Actions -------------------------------
@@ -225,12 +243,14 @@ class BuildingAction(Action):
 
     def return_units_required(self, game_state, existing_units):
         # For building, only requires 1 unit available
+        existing_units = self._check_addons(game_state, existing_units)
         try:
-            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, existing_units)}
+            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, set(existing_units))}
         except Exception as e:
             print(self.unit_id)
             print(existing_units)
-            print(e)
+            print(traceback.print_exc())
+            return {}
 
     def return_resources_required(self, game_data):
         unit_data = game_data.units[self.unit_id]
@@ -239,6 +259,35 @@ class BuildingAction(Action):
         return unit_data.mineral_cost, \
                unit_data.vespene_cost, \
                unit_data.food_required or unit_data_patch.get('food_required', 0)
+
+    def _check_addons(self, game_state, existing_units):
+        if self.unit_id not in ADDON_BUILDINGS:
+            return existing_units
+
+        existing_units = self._check_addon_units(
+            UnitTypeIds.BARRACKS.value,
+            [UnitTypeIds.BARRACKSTECHLAB.value, UnitTypeIds.BARRACKSREACTOR.value],
+            game_state, existing_units
+        )
+        existing_units = self._check_addon_units(
+            UnitTypeIds.FACTORY.value,
+            [UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.FACTORYREACTOR.value],
+            game_state, existing_units
+        )
+        existing_units = self._check_addon_units(
+            UnitTypeIds.STARPORT.value,
+            [UnitTypeIds.STARPORTTECHLAB.value, UnitTypeIds.STARPORTREACTOR.value],
+            game_state, existing_units
+        )
+        return existing_units
+
+    def _check_addon_units(self, unit, addon_units, game_state, existing_units):
+        if self.unit_id in addon_units:
+            unit_count = existing_units.count(unit)
+            units_with_addons = len(game_state.player_units.filter(unit_type__in=addon_units))
+            if units_with_addons >= unit_count:
+                return [u for u in existing_units if u != unit]
+        return existing_units
 
 
 class Build(BuildingAction):
@@ -268,22 +317,7 @@ class Build(BuildingAction):
             # Get target point (for now TH1)
             # TODO: Check faction
             # Find placement
-            if self.placement:
-                placement = self.placement
-            else:
-                placement = None
-                th = game_state.player_units.filter(unit_type=UnitTypeIds.COMMANDCENTER.value)[0]
-                if self.unit_id in [UnitTypeIds.REFINERY.value]:
-                    geysers = select_related_gas(game_state, th)
-                    for geyser in geysers:
-                        target_point = geyser.pos.x, geyser.pos.y
-                        placement = await find_placement(ws, ability_id, target_point)
-                        if placement:
-                            target_unit = geyser
-                            break
-                else:
-                    target_point = th.pos.x, th.pos.y
-                    placement = await find_placement(ws, ability_id, target_point)
+            placement, target_unit = await self.find_building_placement(ability_id, game_state, target_unit, ws)
 
             # Select builder
             # TODO: Get closest builder
@@ -300,6 +334,55 @@ class Build(BuildingAction):
         except Exception:
             print(traceback.print_exc())
             return False
+
+    async def find_building_placement(self, ability_id, game_state, target_unit, ws):
+        if self.placement:
+            placement = self.placement
+        else:
+            placement = None
+            th = game_state.player_units.filter(unit_type__in=[
+                UnitTypeIds.COMMANDCENTER.value,
+                UnitTypeIds.PLANETARYFORTRESS.value,
+                UnitTypeIds.ORBITALCOMMAND.value
+            ])[0]
+            if self.unit_id in [UnitTypeIds.REFINERY.value]:
+                geysers = select_related_gas(game_state, th)
+                for geyser in geysers:
+                    target_point = geyser.pos.x, geyser.pos.y
+                    placement = await find_placement(ws, ability_id, target_point)
+                    if placement:
+                        target_unit = geyser
+                        break
+            else:
+                target_point = th.pos.x, th.pos.y
+                placement = await find_placement(ws, ability_id, target_point)
+        return placement, target_unit
+
+
+class Expansion(Build):
+    def __init__(self, point=None):
+        # TODO: Check race
+        unit_id = UnitTypeIds.COMMANDCENTER.value
+        super().__init__(unit_id, point)
+
+    async def find_building_placement(self, ability_id, game_state, target_unit, ws):
+        point = self._get_point(game_state)
+        clusters = filter(lambda c: euclidean_distance(c.center, point) > 10, group_resources(game_state))
+        closest_cluster = min(clusters, key=lambda cluster: euclidean_distance(point, cluster.center))
+        return closest_cluster.building_point(), target_unit
+
+    def _get_point(self, game_state):
+        point = self.placement
+        if point is None:
+            units = game_state.player_units.filter(unit_type__in=[
+                UnitTypeIds.COMMANDCENTER.value,
+                UnitTypeIds.ORBITALCOMMAND.value,
+                UnitTypeIds.PLANETARYFORTRESS.value
+            ])
+            if not units:
+                units = game_state.player_units
+            point = (units[0].pos.x, units[0].pos.y)
+        return point
 
 
 class Train(BuildingAction):
@@ -357,22 +440,7 @@ class UnitAction(Action):
     def get_target_data(self, game_state):
         target = {}
         if self.target_unit:
-            # Get targeted unit data
-            unit_type = self.target_unit.get("type")
-            index = self.target_unit.get("index", 0)
-            alignment = self.target_unit.get("alignment")
-
-            # Select set
-            if alignment == "enemy":
-                selected_set = game_state.enemy_units
-            elif alignment == "own":
-                selected_set = game_state.player_units
-            else:
-                selected_set = game_state.neutral_units
-
-            # TODO: Add distance to starting point
-            filtered_units = selected_set.filter(unit_type=unit_type)
-            targeted_unit = filtered_units[index]
+            targeted_unit = self.filter_target_unit(game_state)
 
             if self.target_unit.get("action_pos"):
                 target['target_point'] = (targeted_unit.pos.x, targeted_unit.pos.y)
@@ -384,6 +452,30 @@ class UnitAction(Action):
 
         return target
 
+    def filter_target_unit(self, game_state):
+        # Get targeted unit data
+        unit_ids = self.target_unit.get("ids")
+        unit_types = self.target_unit.get("types")
+        index = self.target_unit.get("index", 0)
+        alignment = self.target_unit.get("alignment")
+
+        # Select set
+        if alignment == "enemy":
+            selected_set = game_state.enemy_units
+        elif alignment == "own":
+            selected_set = game_state.player_units
+        else:
+            selected_set = game_state.neutral_units
+
+        # TODO: Add distance to starting point
+        if unit_ids:
+            filtered_units = selected_set.filter(tag__in=unit_ids)
+            if not filtered_units:
+                raise UnitDestroyed()
+        else:
+            filtered_units = selected_set.filter(unit_type__in=unit_types)
+        return filtered_units[index]
+
     def get_action_units(self, game_state, target):
         distance_args = None
         if target.get('target_unit'):
@@ -393,25 +485,43 @@ class UnitAction(Action):
 
         # Get units performing the action
         base_manager = UnitManager([])
-        for unit_type, amount in self.unit_group.items():
-            units = game_state.player_units.filter(unit_type=unit_type)
+
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
+
+        if query_params:
+            base_manager = game_state.player_units.filter(**query_params)
             if distance_args:
-                units = units.add_calculated_values(distance_to=distance_args)
-            base_manager += units[:amount]
+                base_manager = base_manager.add_calculated_values(distance_to=distance_args)
+
+        elif composition:
+            for unit_type, amount in composition.items():
+                units = game_state.player_units.filter(unit_type=unit_type)
+                if distance_args:
+                    units = units.add_calculated_values(distance_to=distance_args)
+                base_manager += units[:amount]
 
         return base_manager
 
     def return_units_required(self, game_state, existing_units):
-        required_units = {}
-        for unit_type, amount in self.unit_group.items():
-            existing = len(game_state.player_units.filter(unit_type=unit_type, build_progress=1))
-            missing = amount - existing
-            if missing > 0:
-                required_units[unit_type] = missing
-        return required_units
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
 
-    def return_upgrades_required(self, game_state):
-        return return_current_ability_dependencies(self.ability_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+        if query_params:
+            return {}
+        elif composition:
+            required_units = {}
+            for unit_type, amount in composition.items():
+                existing = len(game_state.player_units.filter(unit_type=unit_type, build_progress=1))
+                missing = amount - existing
+                if missing > 0:
+                    required_units[unit_type] = missing
+            return required_units
+        else:
+            return {}
+
+    def return_upgrades_required(self, existing_upgrades):
+        return return_current_ability_dependencies(self.ability_id, existing_upgrades)
 
     async def perform_action(self, ws, game_state):
         try:
@@ -425,7 +535,9 @@ class UnitAction(Action):
             else:
                 # No units to perform action, return failure
                 return False
-        except Exception:
+        except UnitDestroyed:
+            return 1
+        except Exception as e:
             return False
 
 
@@ -507,17 +619,32 @@ class Harvest(UnitAction):
             return []
 
         workers = UnitManager([])
-        for worker_type, worker_amount in self.unit_group.items():
-            type_workers = game_state.player_units.filter(
-                unit_type=worker_type
-            ).add_calculated_values(
+
+        composition = self.unit_group.get('composition')
+        query_params = self.unit_group.get('query')
+
+        if query_params:
+            type_workers = game_state.player_units.filter(**query_params).add_calculated_values(
                 distance_to={"unit": target_unit},
                 unit_availability={},
             ).sort_by('last_unit_availability', 'last_distance_to')
 
-            assignable_workers = min(missing_workers, worker_amount)
+            assignable_workers = missing_workers
             workers += type_workers[:assignable_workers]
             missing_workers -= assignable_workers
+
+        elif composition:
+            for worker_type, worker_amount in composition.items():
+                type_workers = game_state.player_units.filter(
+                    unit_type=worker_type
+                ).add_calculated_values(
+                    distance_to={"unit": target_unit},
+                    unit_availability={},
+                ).sort_by('last_unit_availability', 'last_distance_to')
+
+                assignable_workers = min(missing_workers, worker_amount)
+                workers += type_workers[:assignable_workers]
+                missing_workers -= assignable_workers
 
         return workers
 
@@ -526,11 +653,11 @@ class Upgrade(UnitAction):
     def __init__(self, upgrade_id):
         upgrade_data = UPGRADE_DATA[upgrade_id]
         upgrade_unit = get_upgrading_building(upgrade_id)
-        super().__init__(upgrade_data['ability_id'], {upgrade_unit: 1})
+        super().__init__(upgrade_data['ability_id'], {"composition": {upgrade_unit: 1}})
         self.upgrade_id = upgrade_id
 
-    def return_upgrades_required(self, game_state):
-        return return_missing_parent_upgrades(self.upgrade_id, [u.upgrade_id for u in game_state.player_info.upgrades])
+    def return_upgrades_required(self, existing_upgrades):
+        return return_missing_parent_upgrades(self.upgrade_id, existing_upgrades)
 
     def return_resources_required(self, game_data):
         mineral_cost = UPGRADE_DATA[self.upgrade_id]['mineral_cost']
@@ -591,7 +718,7 @@ class ActionsPlayer(Player):
                 remaining_actions.append(action)
         return remaining_actions
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         new_actions = self.get_required_actions(game_state)
         self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
         print(new_actions)
@@ -615,8 +742,8 @@ DEMO_ACTIONS_6 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Train(UnitTypeIds.HELLION.value, 1) for _ in range(2)] + \
                  [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
                  [Train(UnitTypeIds.BATTLECRUISER.value, 2)]
-DEMO_ACTIONS_7 = [Attack({UnitTypeIds.MARINE.value: 10},
-                         target_unit={"type": UnitTypeIds.HATCHERY.value,
+DEMO_ACTIONS_7 = [Attack({"composition": {UnitTypeIds.MARINE.value: 10}},
+                         target_unit={"types": [UnitTypeIds.HATCHERY.value],
                                       "alignment": "enemy",
                                       "action_pos": True
                                       })
@@ -628,14 +755,17 @@ DEMO_ACTIONS_8 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
                  [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
                  [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] + \
-                 [Attack({UnitTypeIds.BATTLECRUISER.value: 1},
-                         target_unit={"type": UnitTypeIds.HATCHERY.value,
+                 [Attack({"composition": {UnitTypeIds.BATTLECRUISER.value: 1}},
+                         target_unit={"types": [UnitTypeIds.HATCHERY.value],
                                       "alignment": "enemy",
                                       "action_pos": True
                                       })
                   ]
 DEMO_ACTIONS_9 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(4)] + \
                  [Train(UnitTypeIds.MARINE.value, 1) for _ in range(25)] + \
-                 [Harvest({UnitTypeIds.SCV.value: 3}, Harvest.VESPENE)] + \
+                 [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                  [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
-                 [UnitAction(ability_id=AbilityId.EFFECT_STIM_MARINE.value, unit_group={UnitTypeIds.MARINE.value: 5})]
+                 [UnitAction(
+                     ability_id=AbilityId.EFFECT_STIM_MARINE.value,
+                     unit_group={"composition": {UnitTypeIds.MARINE.value: 5}}
+                 )]

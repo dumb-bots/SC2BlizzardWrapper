@@ -1,15 +1,16 @@
+import itertools
+
 import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.query_pb2 as api_query
 
-from  constants.ability_dependencies import ABILITY_DEPENDENCIES
-from  constants.ability_ids import AbilityId
-from  constants.unit_dependencies import UNIT_DEPENDENCIES
-from  constants.unit_type_ids import UnitTypeIds
-from  constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
-from google.protobuf.json_format import MessageToDict
-import json
+from constants.ability_dependencies import ABILITY_DEPENDENCIES
+from constants.ability_ids import AbilityId
+from constants.unit_dependencies import UNIT_DEPENDENCIES
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
+
 
 HARVESTING_ORDERS = [
     # SCV
@@ -55,12 +56,22 @@ GEYSER_IDS = [
     unit_type.value for unit_type in UnitTypeIds if "GEYSER" in unit_type.name
 ]
 
+MINERAL_FIELD_IDS = [
+    unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name
+]
+
+ADDON_BUILDINGS = [
+    UnitTypeIds.BARRACKSTECHLAB.value, UnitTypeIds.BARRACKSREACTOR.value,
+    UnitTypeIds.FACTORYTECHLAB.value, UnitTypeIds.FACTORYREACTOR.value,
+    UnitTypeIds.STARPORTTECHLAB.value, UnitTypeIds.STARPORTREACTOR.value,
+]
+
 
 def get_building_unit(unit_id):
     building_unit_types = set()
     addon_types = set()
 
-    dependency_list = UNIT_DEPENDENCIES[unit_id]
+    dependency_list = UNIT_DEPENDENCIES.get(unit_id, [])
 
     # Check buildings in dependency list
     for dependencies in dependency_list:
@@ -78,6 +89,8 @@ def get_available_builders(unit_id, game_state):
     available_builders = game_state.player_units.filter(
         unit_type__in=building_unit_types, build_progress=1
     )
+    if unit_id in ADDON_BUILDINGS:
+        available_builders = available_builders.filter(add_on_tag=0)
     if addon_types:
         addon_tags = game_state.player_units.filter(
             unit_type__in=addon_types, build_progress=1
@@ -167,11 +180,8 @@ def get_available_upgrade_buildings(game_state, upgrade):
 
 
 def select_related_minerals(game_state, town_hall):
-    mineral_field_ids = [
-        unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name
-    ]
     neutral = game_state.neutral_units.filter(
-        unit_type__in=mineral_field_ids
+        unit_type__in=MINERAL_FIELD_IDS
     ).add_calculated_values(distance_to={"unit": town_hall})
     return neutral.filter(last_distance_to__lte=25).sort_by("last_distance_to")
 
@@ -280,6 +290,123 @@ def return_upgrade_building_requirements(
         new_existing_units += units_required
     return units_required
 
+
+def get_closing_enemies(game_state):
+    from game_data.units import UnitManager
+
+    town_halls = game_state.player_units.filter(unit_type__in=[
+        UnitTypeIds.COMMANDCENTER.value,
+        UnitTypeIds.ORBITALCOMMAND.value,
+        UnitTypeIds.PLANETARYFORTRESS.value,
+    ])
+    min_distance = 30
+    dangerous_units = UnitManager([])
+    for th in town_halls:
+        e_units = game_state.enemy_units \
+            .add_calculated_values(distance_to={"unit": th}) \
+            .filter(last_distance_to__lte=min_distance)
+        dangerous_units += e_units
+    return dangerous_units.values('tag', flat_list=True)
+
+
+class ResourceCluster:
+    DISTANCE_THRESHOLD = 16
+
+    def __init__(self, initial_resource, game_state):
+        self._geysers = []
+        self._mineral_fields = []
+        self.center = (initial_resource.pos.x, initial_resource.pos.y)
+        self.height = game_state.terrain_height(self.center)
+        self.add_unit(initial_resource)
+
+    def __repr__(self):
+        return '<Cluster {} {}: {}m {}g>'.format(
+            self.center, self.height, len(self._mineral_fields), len(self._geysers)
+        )
+
+    @property
+    def mineral_fields(self):
+        from game_data.units import UnitManager
+        return UnitManager(self._mineral_fields)
+
+    @property
+    def geysers(self):
+        from game_data.units import UnitManager
+        return UnitManager(self._geysers)
+
+    def unit_in_cluster(self, resource_unit, game_state):
+        unit_height = game_state.terrain_height((resource_unit.pos.x, resource_unit.pos.y))
+        in_range = resource_unit.distance_to(pos=self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
+    def add_mineral_field(self, mineral_field):
+        self._mineral_fields.append(mineral_field)
+
+    def add_geyser(self, geyser):
+        self._geysers.append(geyser)
+
+    def add_unit(self, unit):
+        if unit.unit_type in MINERAL_FIELD_IDS:
+            self.add_mineral_field(unit)
+        elif unit.unit_type in GEYSER_IDS:
+            self.add_geyser(unit)
+
+    def building_point(self):
+        possible_points = self._get_possible_points()
+        restricted_points = self._restrict_point_distance(possible_points)
+        return min(
+            restricted_points,
+            key=lambda p: sum(self._distances_to_minerals(p)) + sum(self._distances_to_geysers(p))
+        )
+
+    def _get_possible_points(self):
+        offset_square_side = 10
+        low_limit = - offset_square_side
+        top_limit = offset_square_side + 1
+        offsets = list(itertools.product(list(range(low_limit, top_limit)), list(range(low_limit, top_limit))))
+        points = map(lambda o: (
+            self.geysers[0].pos.x + o[0],
+            self.geysers[0].pos.y + o[1]
+        ), offsets)
+        return points
+
+    def _restrict_point_distance(self, points):
+        return filter(self._point_in_valid_area, points)
+
+    def _point_in_valid_area(self, point):
+        min_distance_to_minerals = 6
+        min_distance_to_geysers = 7
+        too_close_to_minerals = any(map(lambda d: d < min_distance_to_minerals, self._distances_to_minerals(point)))
+        too_close_to_geysers = any(map(lambda d: d < min_distance_to_geysers, self._distances_to_geysers(point)))
+        return not too_close_to_minerals and not too_close_to_geysers
+
+    def _distances_to_minerals(self, point):
+        return self.mineral_fields.add_calculated_values(
+            distance_to={"pos": point}
+        ).values('last_distance_to', flat_list=True)
+
+    def _distances_to_geysers(self, point):
+        return self.geysers.add_calculated_values(
+            distance_to={"pos": point}
+        ).values('last_distance_to', flat_list=True)
+
+
+def group_resources(game_state):
+    resources = game_state.neutral_units.filter(unit_type__in=MINERAL_FIELD_IDS + GEYSER_IDS)
+    clusters = []
+    for resource in resources:
+        in_cluster = False
+        for cluster in clusters:
+            if cluster.unit_in_cluster(resource, game_state):
+                cluster.add_unit(resource)
+                in_cluster = True
+                break
+        if not in_cluster:
+            clusters.append(ResourceCluster(resource, game_state))
+    return clusters
+
+
 def obs_to_case(obs, game_info):
     resumed_units = []
     units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
@@ -308,6 +435,7 @@ def obs_to_case(obs, game_info):
     observation["startingPoints"] = game_info["startLocations"]
     return observation
 
+
 def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
     actions = obs.get("observation",{}).get("actions", [])
     obs = obs_to_case(obs, game_info)
@@ -316,7 +444,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
     result = replay_info["results"][p_id]
     for action in actions:
         action = action.get("actionRaw",None)
-        if action:   
+        if action:
             resumed_action = {}
             if "unitCommand" in action.keys():
                 action = action["unitCommand"]
@@ -339,7 +467,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
             if resumed_action:
-                resumed_action["games"] = 1 
+                resumed_action["games"] = 1
                 resumed_action["wins"] = 1 if result  == 1 else 0
                 resumed_action["looses"] = 0 if result  == 1 else 1
                 resumed_actions.append(resumed_action)
@@ -358,6 +486,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
         "looses": 0 if result  == 1 else 1
     }
 
+
 def units_by_tag(obs):
     by_tag = {}
     units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
@@ -365,7 +494,7 @@ def units_by_tag(obs):
         if unit.get("tag",None):
             by_tag[unit["tag"]] = {
                 "type": unit.get("unitType",None),
-                "position": 
+                "position":
                 {
                     "x": round(unit["pos"]["x"]),
                     "y": round(unit["pos"]["y"]),
