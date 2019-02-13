@@ -10,6 +10,8 @@ from players.cbr_algorithm import CBRAlgorithm
 from pymongo import MongoClient
 import requests
 
+from players.rules import IDLE_RULES
+
 sys.path.append("..")
 
 try:
@@ -44,11 +46,13 @@ observations = r.json()
 player1 = CBRAlgorithm()
 loop.run_until_complete(
     player1.create(
-        "Terran", "Human", server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,cases=observations
+        "Terran", "Human",
+        server_route=SERVER_ROUTE, server_address=SERVER_ADDRESS,
+        cases=observations, rules=IDLE_RULES,
     )
 )
 loop.run_until_complete(
-    play_vs_ia(player1, {}, "Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryHard", 24)
+    play_vs_ia(player1, {}, "Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryEasy", 24)
 )
 
 # for i in range(100):

@@ -71,7 +71,7 @@ def get_building_unit(unit_id):
     building_unit_types = set()
     addon_types = set()
 
-    dependency_list = UNIT_DEPENDENCIES[unit_id]
+    dependency_list = UNIT_DEPENDENCIES.get(unit_id, [])
 
     # Check buildings in dependency list
     for dependencies in dependency_list:

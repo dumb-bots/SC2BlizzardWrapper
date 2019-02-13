@@ -227,3 +227,9 @@ DEMO_RULES_2 = [
         )]
     )
 ]
+
+
+IDLE_RULES = [
+    DefendIdleUnits(None, None),
+    TerminateIdleUnits(None, None),
+]

@@ -249,7 +249,8 @@ class BuildingAction(Action):
         except Exception as e:
             print(self.unit_id)
             print(existing_units)
-            return []
+            print(traceback.print_exc())
+            return {}
 
     def return_resources_required(self, game_data):
         unit_data = game_data.units[self.unit_id]
@@ -339,7 +340,11 @@ class Build(BuildingAction):
             placement = self.placement
         else:
             placement = None
-            th = game_state.player_units.filter(unit_type=UnitTypeIds.COMMANDCENTER.value)[0]
+            th = game_state.player_units.filter(unit_type__in=[
+                UnitTypeIds.COMMANDCENTER.value,
+                UnitTypeIds.PLANETARYFORTRESS.value,
+                UnitTypeIds.ORBITALCOMMAND.value
+            ])[0]
             if self.unit_id in [UnitTypeIds.REFINERY.value]:
                 geysers = select_related_gas(game_state, th)
                 for geyser in geysers:
