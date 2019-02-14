@@ -52,7 +52,7 @@ loop.run_until_complete(
     )
 )
 loop.run_until_complete(
-    play_vs_ia(player1, {}, "Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryEasy", 24)
+    play_vs_ia(player1, {}, "InterloperLE.SC2Map", "Terran", "VeryEasy", 24)
 )
 
 # for i in range(100):
