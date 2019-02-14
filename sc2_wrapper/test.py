@@ -41,6 +41,7 @@ loop = asyncio.get_event_loop()
 # tr.print_diff()
 observations = []
 for i in range(0,20):
+    print(i)
     r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
     observations += r.json()
 
