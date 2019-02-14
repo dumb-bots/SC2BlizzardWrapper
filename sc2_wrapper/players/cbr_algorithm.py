@@ -18,10 +18,10 @@ class CBRAlgorithm(RulesPlayer):
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         cbr_actions = await self.determine_actions(raw)
-        print(cbr_actions)
-        translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
-        self.actions_queue += translated_actions
-        await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
+        # print(cbr_actions)
+        # translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
+        # self.actions_queue += translated_actions
+        # await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
@@ -30,8 +30,10 @@ class CBRAlgorithm(RulesPlayer):
         actions = []
         if self.cases:
             for case in self.cases:
-                case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
-                probabilities_per_case.append([case, case_evaluation])
+                print(situation["startingPoints"])
+                if case["startingPoints"] == situation["startingPoints"]:
+                    case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
+                    probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
             items = sorted(items, key=lambda x: x[1])
             items = items[-100:]

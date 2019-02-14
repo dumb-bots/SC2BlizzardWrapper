@@ -39,8 +39,11 @@ loop = asyncio.get_event_loop()
 # finally:
 #     loop.close()
 # tr.print_diff()
-r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
-observations = r.json()
+observations = []
+for i in range(0,20):
+    r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
+    observations += r.json()
+
 # while True:
 
 player1 = CBRAlgorithm()
