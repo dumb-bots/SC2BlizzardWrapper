@@ -20,9 +20,10 @@ class CBRAlgorithm(RulesPlayer):
         cbr_actions = await self.determine_actions(raw)
         print(cbr_actions)
         cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
-        translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
-        self.actions_queue += translated_actions
-        await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
+        if cbr_actions:
+            translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
+            self.actions_queue += translated_actions
+            await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
@@ -52,15 +53,15 @@ class CBRAlgorithm(RulesPlayer):
                 if random_number <= item[1]:
                     selected_case = item[0]
                     break
-
-            actions = selected_case["actions"]  # List of actions for the case
-            if actions:
-                list_of_actions = []
-                for action in actions:
-                    random_number_action = random.uniform(0, 1)
-                    if random_number_action <= self.evaluate_action(action):
-                        list_of_actions.append(action)
-                actions = list_of_actions
+            if selected_case:
+                actions = selected_case["actions"]  # List of actions for the case
+                if actions:
+                    list_of_actions = []
+                    for action in actions:
+                        random_number_action = random.uniform(0, 1)
+                        if random_number_action <= self.evaluate_action(action):
+                            list_of_actions.append(action)
+                    actions = list_of_actions
         return actions
 
     #Returns the distance between two cases    
