@@ -31,7 +31,7 @@ class CBRAlgorithm(RulesPlayer):
         if self.cases:
             for case in self.cases:
                 print(situation["startingPoints"])
-                if case["startingPoints"] == situation["startingPoints"]:
+                if case["observation"]["startingPoints"] == situation["startingPoints"]:
                     case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
                     probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
