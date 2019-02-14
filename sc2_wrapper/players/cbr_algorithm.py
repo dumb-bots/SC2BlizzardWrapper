@@ -19,10 +19,9 @@ class CBRAlgorithm(RulesPlayer):
     async def process_step(self, ws, game_state, raw=None, actions=None):
         cbr_actions = await self.determine_actions(raw)
         print(cbr_actions)
-        # print(cbr_actions)
-        # translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
-        # self.actions_queue += translated_actions
-        # await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
+        translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
+        self.actions_queue += translated_actions
+        await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
