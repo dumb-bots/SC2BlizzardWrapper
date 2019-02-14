@@ -30,7 +30,7 @@ class CBRAlgorithm(RulesPlayer):
         actions = []
         if self.cases:
             for case in self.cases:
-                if case["observation"]["startingPoints"] == situation["startingPoints"]:
+                if case["observation"]["startingPoints"] == situation["startingPoints"] and (case["observation"]["loop"] <= situation["loop"] + 720 and case["observation"]["loop"] >= situation["loop"] - 720):
                     case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
                     probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
@@ -115,7 +115,8 @@ class CBRAlgorithm(RulesPlayer):
         count = case["games"]
         distance = self.get_distance(situation, case)
         #distance = 0
-        case_eval = (count / (count + 10)) * (((2 * won) / count) - 1) * (1 / (1 + distance))
+        # case_eval = (count / (count + 10)) * (((2 * won) / count) - 1) * (1 / (1 + distance))
+        case_eval = 1 / (1 + distance)
         return case_eval
 
     #Returns te action evaluation
