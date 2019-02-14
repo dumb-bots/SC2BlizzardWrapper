@@ -148,7 +148,7 @@ class PlayerVSIA(PlayedGame):
             seconds = 0
             while self.status == "started":
                 results = [await self.player.advance_time(step)]
-                if results:
+                if results[0]:
                     if results[0].status == 3:
                         self.status = "started"
                     else:
@@ -226,7 +226,7 @@ class PlayerVSPlayer(PlayedGame):
                     self.players[0].advance_time(step),
                     self.players[1].advance_time(step),
                 )
-                if results:
+                if results[0]:
                     if results[0].status == 3:
                         self.status = "started"
                     else:
