@@ -160,15 +160,14 @@ class Player:
         return True
 
     async def advance_time(self, step=100):
-        async with websockets.connect(
-            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
-        ) as ws:
-            request_payload = api.Request()
-            request_payload.observation.disable_fog = True
-            DefaultObs = namedtuple("Observation", "status")
-            observation = DefaultObs(3)
-
-            try:
+        try:
+            async with websockets.connect(
+                "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+            ) as ws:
+                request_payload = api.Request()
+                request_payload.observation.disable_fog = True
+                DefaultObs = namedtuple("Observation", "status")
+                observation = DefaultObs(3)
                 await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
                 result = await asyncio.wait_for(ws.recv(), 5)
                 observation = api.Response.FromString(result)
@@ -180,10 +179,10 @@ class Player:
                 await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
                 result = await asyncio.wait_for(ws.recv(), 5)
                 response = api.Response.FromString(result)
-            except:
+                return observation
+        except:
                 print(traceback.print_exc())
                 print("Error during advance time, ignoring observation")
-            return observation
 
     # Player support tools
     def select_idle_workers(self, game_state, number=None):
