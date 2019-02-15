@@ -93,30 +93,31 @@ class CBRAlgorithm(RulesPlayer):
 
         list_units_situation = situation["units"]
         list_units_case = case["observation"]["units"]
+
         distance += abs(len(list_units_situation) - len(list_units_case))
 
-        units_by_type_situation = {}
-        units_by_type_case = {}
-        for unit_situation in list_units_situation:
-            value = units_by_type_situation.get(unit_situation["type"], [])
-            value.append(unit_situation)
-            units_by_type_situation[unit_situation["type"]] = value
-        for unit_case in list_units_case:
-            value = units_by_type_case.get(unit_case["type"], [])
-            value.append(unit_case)
-            units_by_type_case[unit_case["type"]] = value
+        # units_by_type_situation = {}
+        # units_by_type_case = {}
+        # for unit_situation in list_units_situation:
+        #     value = units_by_type_situation.get(unit_situation["type"], [])
+        #     value.append(unit_situation)
+        #     units_by_type_situation[unit_situation["type"]] = value
+        # for unit_case in list_units_case:
+        #     value = units_by_type_case.get(unit_case["type"], [])
+        #     value.append(unit_case)
+        #     units_by_type_case[unit_case["type"]] = value
 
-        for unit_situation in list_units_situation:
-            comparing_units = units_by_type_case.get(unit_situation["type"], [])
-            if comparing_units:
-                units_distance = min(comparing_units, key = lambda x : self.units_distance(x, unit_situation))
-                distance += self.units_distance(units_distance, unit_situation)
+        # for unit_situation in list_units_situation:
+        #     comparing_units = units_by_type_case.get(unit_situation["type"], [])
+        #     if comparing_units:
+        #         units_distance = min(comparing_units, key = lambda x : self.units_distance(x, unit_situation))
+        #         distance += self.units_distance(units_distance, unit_situation)
 
-        for unit_case in list_units_case:
-            comparing_units = units_by_type_situation.get(unit_case["type"],[])
-            if comparing_units:
-                units_distance = min(comparing_units, key = lambda x : self.units_distance(x, unit_case))
-                distance += self.units_distance(units_distance, unit_case)
+        # for unit_case in list_units_case:
+        #     comparing_units = units_by_type_situation.get(unit_case["type"],[])
+        #     if comparing_units:
+        #         units_distance = min(comparing_units, key = lambda x : self.units_distance(x, unit_case))
+        #         distance += self.units_distance(units_distance, unit_case)
 
         return distance
     
