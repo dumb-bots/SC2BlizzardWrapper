@@ -16,6 +16,7 @@ class CBRAlgorithm(RulesPlayer):
             **kwargs
     ):
         self.cases = cases
+        self.cases_by_loop = {}
         await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
@@ -27,7 +28,7 @@ class CBRAlgorithm(RulesPlayer):
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
-        print(len(cases))
+        print(len(self.cases))
         if situation["loop"] == 0:
             self.cases = list(filter(lambda x : x["observation"]["startingPoints"] == situation["startingPoints"]))
         print(situation["loop"])
