@@ -20,19 +20,22 @@ class CBRAlgorithm(RulesPlayer):
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         cbr_actions = await self.determine_actions(raw)
-        cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
+        cbr_actions = list(filter(lambda x: x["id"] != 1 or (x["id"] == 1 and "targetUnit" in x.keys()), cbr_actions))
         translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
         self.actions_queue += translated_actions
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
+        print(len(cases))
+        if situation["loop"] == 0:
+            self.cases = list(filter(lambda x : x["observation"]["startingPoints"] == situation["startingPoints"]))
         print(situation["loop"])
         probabilities_per_case = []
         actions = []
         if self.cases:
             for case in self.cases:
-                if case["observation"]["startingPoints"] == situation["startingPoints"] and (case["observation"]["loop"] <= situation["loop"] + 720 and case["observation"]["loop"] >= situation["loop"] - 720):
+                if (case["observation"]["loop"] <= situation["loop"] + 720 and case["observation"]["loop"] >= situation["loop"] - 720):
                     case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
                     probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
