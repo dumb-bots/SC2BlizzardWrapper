@@ -90,7 +90,10 @@ class TerminateIdleUnits(UnitsRule):
 
     def _match(self, game_state, player):
         no_enemy_th = not game_state.enemy_units.filter(
-            unit_type__in=[UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value],
+            unit_type__in=[
+                UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value,
+                UnitTypeIds.COMMANDCENTER.value, UnitTypeIds.ORBITALCOMMAND.value, UnitTypeIds.PLANETARYFORTRESS.value
+            ],
         )
         return no_enemy_th and self.idle_units(game_state)
 
@@ -117,6 +120,7 @@ class DefendIdleUnits(TerminateIdleUnits):
         return self.match_query_output(game_state) and self.idle_units(game_state)
 
     def next_actions(self, game_state):
+        print("DEFENDING!")
         return [Attack(
             {"query": {"tag__in": self.idle_units(game_state).values('tag', flat_list=True)}},
             target_unit={

@@ -245,7 +245,11 @@ class BuildingAction(Action):
         # For building, only requires 1 unit available
         existing_units = self._check_addons(game_state, existing_units)
         try:
-            return {unit_type: 1 for unit_type in return_current_unit_dependencies(self.unit_id, set(existing_units))}
+            unit_dependencies = return_current_unit_dependencies(self.unit_id, set(existing_units))
+            if unit_dependencies:
+                return {unit_type: 1 for unit_type in unit_dependencies}
+            else:
+                return {}
         except Exception as e:
             print(self.unit_id)
             print(existing_units)
@@ -336,27 +340,30 @@ class Build(BuildingAction):
             return False
 
     async def find_building_placement(self, ability_id, game_state, target_unit, ws):
-        if self.placement:
-            placement = self.placement
-        else:
-            placement = None
-            th = game_state.player_units.filter(unit_type__in=[
-                UnitTypeIds.COMMANDCENTER.value,
-                UnitTypeIds.PLANETARYFORTRESS.value,
-                UnitTypeIds.ORBITALCOMMAND.value
-            ])[0]
-            if self.unit_id in [UnitTypeIds.REFINERY.value]:
-                geysers = select_related_gas(game_state, th)
-                for geyser in geysers:
-                    target_point = geyser.pos.x, geyser.pos.y
-                    placement = await find_placement(ws, ability_id, target_point)
-                    if placement:
-                        target_unit = geyser
-                        break
-            else:
-                target_point = th.pos.x, th.pos.y
+        placement = self.placement
+        if not placement:
+            th = self.get_th(game_state)
+            placement = th.pos.x, th.pos.y
+
+        if self.unit_id in [UnitTypeIds.REFINERY.value]:
+            th = self.get_th(game_state)
+            geysers = select_related_gas(game_state, th)
+            for geyser in geysers:
+                target_point = geyser.pos.x, geyser.pos.y
                 placement = await find_placement(ws, ability_id, target_point)
+                if placement:
+                    target_unit = geyser
+                    break
+        else:
+            placement = await find_placement(ws, ability_id, placement)
         return placement, target_unit
+
+    def get_th(self, game_state):
+        return game_state.player_units.filter(unit_type__in=[
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.PLANETARYFORTRESS.value,
+            UnitTypeIds.ORBITALCOMMAND.value
+        ])[0]
 
 
 class Expansion(Build):
@@ -367,9 +374,24 @@ class Expansion(Build):
 
     async def find_building_placement(self, ability_id, game_state, target_unit, ws):
         point = self._get_point(game_state)
-        clusters = filter(lambda c: euclidean_distance(c.center, point) > 10, group_resources(game_state))
+        occupied_points = self._get_occupied_points(game_state)
+        clusters = filter(
+            lambda c: min([euclidean_distance(c.center, p) for p in occupied_points]) > 9,
+            group_resources(game_state)
+        )
         closest_cluster = min(clusters, key=lambda cluster: euclidean_distance(point, cluster.center))
         return closest_cluster.building_point(), target_unit
+
+    def _get_occupied_points(self, game_state):
+        # For terran v terran
+        unit_filter = {"unit_type__in": [
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.ORBITALCOMMAND.value,
+            UnitTypeIds.PLANETARYFORTRESS.value
+        ]}
+        player_positions = game_state.player_units.filter(**unit_filter).values('pos', flat_list=True)
+        enemy_positions = game_state.player_units.filter(**unit_filter).values('pos', flat_list=True)
+        return [(pos.x, pos.y) for pos in player_positions + enemy_positions]
 
     def _get_point(self, game_state):
         point = self.placement

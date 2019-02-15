@@ -213,7 +213,7 @@ def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.va
 
     # Safeguard to avoid recursion when no builders nor town halls exist
     if not (BUILDERS & set(existing_units)) and not (TOWN_HALLS & set(existing_units)):
-        return None
+        return []
 
     # Getting the shortest path, invalid dependency by default
     selected_dependencies = None

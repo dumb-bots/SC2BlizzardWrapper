@@ -3,6 +3,8 @@ from api_wrapper.utils import obs_to_case
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
+from constants.unit_type_ids import UnitTypeIds
+from constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
 from players import actions
 from players.rules import RulesPlayer
 
@@ -21,7 +23,7 @@ class CBRAlgorithm(RulesPlayer):
         cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
         translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
         self.actions_queue += translated_actions
-        await super(RulesPlayer, self).process_step(ws, game_state, raw, actions)
+        await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
@@ -143,19 +145,27 @@ class CBRAlgorithm(RulesPlayer):
         if not isinstance(action_id, int):
             return
 
+        unit_group = self._unit_group_from_action(action)
+        target_point = self._target_point_from_action(action)
+        target_unit = self._target_unit_from_action(action, game_state)
+
         # Check Build Actions
         built_unit = BUILD_ABILITY_UNIT.get(action_id)
         if built_unit:
             if UNIT_DATA.get(built_unit, {}).get('food_required', 0) > 0:
                 return actions.Train(built_unit)
+            elif built_unit == UnitTypeIds.COMMANDCENTER.value:
+                print("EXPANSIONING!")
+                return actions.Expansion()
             else:
-                return actions.Build(built_unit)
+                return actions.Build(built_unit, target_point)
+
+        # Check upgrades
+        upgrade_id = UPGRADE_ABILITY_MAPPING.get(action_id)
+        if upgrade_id:
+            return actions.Upgrade(upgrade_id)
 
         # Check Unit Actions
-        unit_group = self._unit_group_from_action(action)
-        target_point = self._target_point_from_action(action)
-        target_unit = self._target_unit_from_action(action, game_state)
-
         if action_id in [AbilityId.ATTACK_ATTACK.value, AbilityId.ATTACK.value]:
             return actions.Attack(unit_group, target_point, target_unit)
         else:
