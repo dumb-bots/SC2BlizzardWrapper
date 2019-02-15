@@ -31,6 +31,11 @@ class CBRAlgorithm(RulesPlayer):
         print(len(self.cases))
         if situation["loop"] == 0:
             self.cases = list(filter(lambda x : x["observation"]["startingPoints"] == situation["startingPoints"], self.cases))
+            for case in self.cases:
+                value = self.cases_by_loop.get(round(case["observation"]["loop"] / float(172)), [])
+                value.append(case)
+                self.cases_by_loop[round(case["observation"]["loop"] / float(172))] = value
+                
         print(situation["loop"])
         probabilities_per_case = []
         actions = []
