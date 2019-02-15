@@ -40,9 +40,8 @@ loop = asyncio.get_event_loop()
 #     loop.close()
 # tr.print_diff()
 observations = []
-for i in range(0,2):
-    print(i)
-    r = requests.get("http://dumbbots.ddns.net/sample/?n=500")
+for i in range(0,20):
+    r = requests.get("http://dumbbots.ddns.net/sample/")
     observations += r.json()
 
 # while True:
@@ -56,7 +55,7 @@ loop.run_until_complete(
     )
 )
 loop.run_until_complete(
-    play_vs_ia(player1, {}, "InterloperLE.SC2Map", "Terran", "VeryEasy", 24)
+    play_vs_ia(player1, {}, "Ladder2017Season3/InterloperLE.SC2Map", "Terran", "VeryEasy", 24)
 )
 
 # for i in range(100):
