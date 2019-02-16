@@ -23,6 +23,7 @@ class PlayedGame(Game):
         super().__init__()
 
     async def get_replay(self, filename="Example.SC2Replay"):
+        filename = "Replays/Replay" + str(uuid.uuid4()) + ".SC2Replay"
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
@@ -32,10 +33,11 @@ class PlayedGame(Game):
                 _replay_response = await ws.recv()
                 replay_response = api.Response.FromString(_replay_response)
                 with open(
-                    "Replays/Replay" + str(uuid.uuid4()) + ".SC2Replay", "wb"
+                    filename, "wb"
                 ) as f:
                     f.write(replay_response.save_replay.data)
         self.host.status = "idle"
+        return filename
 
 
 class IAVSIA(PlayedGame):
@@ -142,6 +144,7 @@ class PlayerVSIA(PlayedGame):
                 self.status = "started"
 
     async def simulate(self, step=300):
+        result = 0
         async with websockets.connect(
             "ws://{0}:{1}/sc2api".format(self.host.address, self.host.port)
         ) as ws:
@@ -149,10 +152,13 @@ class PlayerVSIA(PlayedGame):
             while self.status == "started":
                 results = [await self.player.advance_time(step)]
                 if results[0]:
+                    if results[0].observation.player_result:
+                        result = results[0].observation.player_result[1].result
                     if results[0].status == 3:
                         self.status = "started"
                     else:
                         self.status = "finished"
+        return result
 
 
 class PlayerVSPlayer(PlayedGame):

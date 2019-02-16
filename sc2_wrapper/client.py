@@ -76,8 +76,9 @@ async def play_vs_ia(player, player_args, starcrat_map, race, difficulty, step):
         except Exception as e:
             print(e)
             continue
-    await game.simulate(step)
-    await game.get_replay()
+    result = await game.simulate(step)
+    replay = await game.get_replay()
+    return (replay, result)
 
 
 async def player_vs_player(player1, player2, starcrat_map, step):
