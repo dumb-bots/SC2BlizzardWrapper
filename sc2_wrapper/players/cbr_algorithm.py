@@ -30,7 +30,6 @@ class CBRAlgorithm(RulesPlayer):
         # cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
         translated_actions = self.raw_actions_to_player_actions(cbr_actions[:10], game_state)
         self.actions_queue += translated_actions
-        self.actions_queue = self.actions_queue[-20:]
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
         end = time.time()
         print(end-start)
