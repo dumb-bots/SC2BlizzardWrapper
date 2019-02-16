@@ -71,9 +71,8 @@ class CBRAlgorithm(RulesPlayer):
                     selected_actions = []
                     for action in actions:
                         list_of_actions.append([action, self.evaluate_action(action)])
-                    print(list_of_actions)
-                    total = max(map(lambda x: x[1], items))
-                    list_of_actions = list(map(lambda x: [x[0], x[1] / total], list_of_actions))
+=                    print(list_of_actions)
+                    list_of_actions = list(map(lambda x: [x[0], x[1] / selected_case["games"]], list_of_actions))
                     for action in list_of_actions:
                         rnd = random.uniform(0,1)
                         if rnd <= action[1]:
@@ -135,7 +134,7 @@ class CBRAlgorithm(RulesPlayer):
         lost = case["looses"]
         distance = self.get_distance(situation, case)
         #distance = 0
-        case_eval = (count / (count + 10)) * (abs(won - lost) / (won + lost)) * (1 / (1 + distance))
+        case_eval = (count / (count + 10)) * ((games) / (games + lost)) * (1 / (1 + distance))
         # case_eval = 1 / (1 + distance)
         return case_eval
 
@@ -144,7 +143,7 @@ class CBRAlgorithm(RulesPlayer):
         count = action["games"]
         won = action["wins"]
         lost = action["looses"]
-        eval_action = (count / (count + 10)) * (abs(won - lost) / (won + lost))
+        eval_action = (count / (count + 10)) * ((games) / (games + lost)) * count
         return eval_action
 
     def units_distance(self, unit1, unit2):
