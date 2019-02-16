@@ -7,7 +7,7 @@ from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
 from players import actions
 from players.rules import RulesPlayer
-
+import time
 
 class CBRAlgorithm(RulesPlayer):
     async def create(
@@ -20,11 +20,14 @@ class CBRAlgorithm(RulesPlayer):
         await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
+        start = time.time()
         cbr_actions = await self.determine_actions(raw)
         # cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
         translated_actions = self.raw_actions_to_player_actions(cbr_actions[:10], game_state)
         self.actions_queue += translated_actions
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
+        end = time.time()
+        print(end-start)
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
