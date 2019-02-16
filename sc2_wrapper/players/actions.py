@@ -1,5 +1,6 @@
 import itertools
 import traceback
+from typing import Tuple, List, Dict, Union
 
 from api_wrapper.utils import get_available_building_unit, find_placement, select_related_gas, \
     get_available_builders, \
@@ -12,7 +13,8 @@ from constants.unit_data import UNIT_DATA
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_data import UPGRADE_DATA
 from constants.upgrade_ids import UpgradeIds
-from game_data.units import UnitManager
+from game_data.observations import DecodedObservation
+from game_data.units import UnitManager, Unit
 from game_data.utils import euclidean_distance
 from players.build_order import Player
 
@@ -101,7 +103,7 @@ class Action:
 
         # Check additional missing units
         vespene_units = self.vespene_dependency(all_units, vespene_missing)
-        food_units = self.food_dependency(units_queue, food_missing)
+        food_units = self.food_dependency(units_queue, food_missing, game_state.player_info.food_cap)
         units_required.update(vespene_units)
         units_required.update(food_units)
 
@@ -174,9 +176,9 @@ class Action:
                 missing_units[refinery_id] = 1
         return missing_units
 
-    def food_dependency(self, units_in_queue, food_missing):
+    def food_dependency(self, units_in_queue, food_missing, food_cap):
         missing_units = {}
-        if food_missing:
+        if food_missing and food_cap < 200:
             # TODO: Check faction
             farm_id = UnitTypeIds.SUPPLYDEPOT.value
             if farm_id not in units_in_queue:
@@ -672,6 +674,75 @@ class Harvest(UnitAction):
         return workers
 
 
+class DistributeHarvest(UnitAction):
+    def __init__(self, unit_group):
+        super().__init__(AbilityId.HARVEST_GATHER_SCV.value, unit_group)
+
+    async def perform_action(self, ws, game_state):
+        try:
+            workers = game_state.player_units.filter(**self.unit_group.get('query'))
+            resources_missing_workers = self.get_resources_missing_workers(game_state)
+            worker_distribution = self.distribute_workers_throughout_resources(workers, resources_missing_workers)
+
+            # Send orders
+            for resource, worker_group in worker_distribution.items():
+                await worker_group.give_order(ws, self.ability_id, target_unit=resource)
+
+            # Don't mind missing a resource distribution
+            return 1
+        except:
+            print(traceback.print_exc())
+
+    def get_resources_missing_workers(
+            self, game_state: DecodedObservation,
+    ) -> List[Tuple[Unit, int]]:
+        mineral_harvesting_hubs = game_state.player_units.filter(unit_type__in=[
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.PLANETARYFORTRESS.value,
+            UnitTypeIds.ORBITALCOMMAND.value,
+        ])
+        vespene_harvesting_hubs = game_state.player_units.filter(unit_type__in=[UnitTypeIds.REFINERY.value])
+        minerals = self._prepare_hub_info(game_state, mineral_harvesting_hubs)
+        vespene = self._prepare_hub_info(game_state, vespene_harvesting_hubs)
+        if game_state.player_info.minerals < game_state.player_info.vespene:
+            return minerals + vespene
+        else:
+            return vespene + minerals
+
+    def _prepare_hub_info(self, game_state: DecodedObservation, harvesting_hubs: UnitManager) -> List[Tuple[Unit, int]]:
+        hubs_and_missing_workers = [(hub, hub.ideal_harvesters - hub.assigned_harvesters) for hub in harvesting_hubs]
+        hubs_missing_workers = filter(lambda t: t[1] > 0, hubs_and_missing_workers)
+        resources_missing_workers = [(self._get_target_resource(hub, game_state), m) for hub, m in hubs_missing_workers]
+        resources_missing_workers = filter(lambda t: t[0] is not None, resources_missing_workers)
+        return sorted(resources_missing_workers, key=lambda t: t[1], reverse=True)
+
+    def _get_target_resource(self, hub: Unit, game_state: DecodedObservation) -> Union[Unit, None]:
+        if hub.unit_type == UnitTypeIds.REFINERY.value:
+            return hub
+        related_resources = select_related_minerals(game_state, hub)
+        if related_resources:
+            return related_resources[0]
+
+    def distribute_workers_throughout_resources(
+            self,
+            workers: UnitManager,
+            resources_missing_workers: List[Tuple[Unit, int]],
+    ) -> Dict[Unit, UnitManager]:
+        worker_distribution = {}
+        taken_workers = []
+        for resource, missing_workers in resources_missing_workers:
+            # Filter workers to take
+            workers = workers.filter(
+                mode=UnitManager.EXCLUDE_AND_MODE, tag__in=taken_workers
+            ).add_calculated_values(distance_to={'unit': resource}).sort_by('last_distance_to')
+
+            # Take workers
+            workers_to_resource = workers[:missing_workers]
+            worker_distribution[resource] = workers_to_resource
+            taken_workers = workers_to_resource.values('tag', flat_list=True)
+        return worker_distribution
+
+
 class Upgrade(UnitAction):
     def __init__(self, upgrade_id):
         upgrade_data = UPGRADE_DATA[upgrade_id]
@@ -745,7 +816,7 @@ class ActionsPlayer(Player):
                     print("{} executed".format(action))
             else:
                 remaining_actions.append(action)
-        return remaining_actions[-20:]
+        return remaining_actions
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         new_actions = self.get_required_actions(game_state)
@@ -756,7 +827,7 @@ class ActionsPlayer(Player):
         print("Food {}/{}".format(game_state.player_info.food_used, game_state.player_info.food_cap))
         print("Minerals {} - Harvesting: {}".format(game_state.player_info.minerals, ", ".join(mineral_stats(game_state))))
         print("Vespene {} - Harvesting: {}".format(game_state.player_info.vespene, ", ".join(vespene_stats(game_state))))
-        # print("Workers (idle/total) {}/{}".format(*idle_workers(game_state)))
+        print("Workers (idle/total) {}/{}".format(*idle_workers(game_state)))
         print("--------------------------------------")
 
 
@@ -771,7 +842,7 @@ def vespene_stats(game_state):
 
 
 def idle_workers(game_state):
-    workers = game_state.filter(unit_type=45)
+    workers = game_state.player_units.filter(unit_type=45)
     return len(workers.filter(orders__attlength=0)), len(workers)
 
 

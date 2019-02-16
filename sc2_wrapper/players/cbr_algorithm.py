@@ -3,6 +3,7 @@ from api_wrapper.utils import obs_to_case
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
+from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
 from players import actions
@@ -18,6 +19,10 @@ class CBRAlgorithm(RulesPlayer):
         self.cases = cases
         self.cases_by_loop = {}
         await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
+
+    async def perform_ready_actions(self, ws, new_actions, game_state):
+        new_actions = await super(CBRAlgorithm, self).perform_ready_actions(ws, new_actions, game_state)
+        return new_actions[-30:]
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         start = time.time()
@@ -175,7 +180,7 @@ class CBRAlgorithm(RulesPlayer):
 
         # Check Build Actions
         built_unit = BUILD_ABILITY_UNIT.get(action_id)
-        if built_unit:
+        if UNIT_DEPENDENCIES.get(built_unit):
             if UNIT_DATA.get(built_unit, {}).get('food_required', 0) > 0:
                 return actions.Train(built_unit)
             elif built_unit == UnitTypeIds.COMMANDCENTER.value:

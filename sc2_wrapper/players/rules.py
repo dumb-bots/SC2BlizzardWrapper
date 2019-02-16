@@ -4,7 +4,7 @@ from api_wrapper.utils import get_closing_enemies
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_ids import UpgradeIds
 from game_data.units import UnitManager
-from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion
+from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion, DistributeHarvest
 
 
 class Rule:
@@ -130,6 +130,56 @@ class DefendIdleUnits(TerminateIdleUnits):
         )]
 
 
+class IdleWorkersHarvest(UnitsRule):
+    def match_query_output(self, game_state):
+        return game_state.player_units.filter(unit_type=UnitTypeIds.SCV.value, orders__attlength=0)
+
+    def _match(self, game_state, player):
+        return self.match_query_output(game_state)
+
+    def next_actions(self, game_state):
+        unit_group = {"query": {"tag__in": self.match_query_output(game_state).values('tag', flat_list=True)}}
+        return [DistributeHarvest(unit_group)]
+
+
+class OverWorkersHarvest(UnitsRule):
+    def match_query_output(self, game_state):
+        town_halls = game_state.player_units.filter(build_progress=1, unit_type__in=[
+            UnitTypeIds.REFINERY.value,
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.PLANETARYFORTRESS.value,
+            UnitTypeIds.ORBITALCOMMAND.value,
+        ])
+        return UnitManager(list(filter(lambda th: th.assigned_harvesters > th.ideal_harvesters, town_halls)))
+
+    def _match(self, game_state, player):
+        return self.match_query_output(game_state)
+
+    def _get_spare_workers(self, game_state):
+        worker_tags = []
+        workers = game_state.player_units.filter(unit_type=UnitTypeIds.SCV.value)
+        for hub in self.match_query_output(game_state):
+            workers_got = 0
+            extra_workers = hub.assigned_harvesters - hub.ideal_harvesters
+            for worker in workers:
+                if workers_got >= extra_workers:
+                    break
+
+                for order in worker.orders:
+                    if order.target_unit_tag == hub.tag:
+                        worker_tags.append(worker.tag)
+                        workers_got += 1
+                        break
+        return worker_tags
+
+    def next_actions(self, game_state):
+        spare_workers = self._get_spare_workers(game_state)
+        if spare_workers:
+            unit_group = {"query": {"tag__in": spare_workers}}
+            return [DistributeHarvest(unit_group)]
+        return []
+
+
 class RulesPlayer(ActionsPlayer):
     def __init__(self):
         super().__init__()
@@ -178,17 +228,16 @@ DEMO_RULES_1 = [
 ]
 
 
-DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
+DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(15)] + \
                        [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(2)] + \
                        [Build(UnitTypeIds.REFINERY.value)] + \
                        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)] + \
-                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
+                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(7)] + \
                        [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(4)] + \
                        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(4)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value)] + \
-                       [Expansion()] + \
                        [Expansion()] + \
                        [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
                        [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
@@ -196,11 +245,14 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
 DEMO_RULES_2 = [
     ActionsRule(
         {},
-        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(4)] +
-        [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(1)]
+        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(6)] +
+        [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(2)] +
+        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(1)]
     ),
     DefendIdleUnits(None, None),
     TerminateIdleUnits(None, None),
+    IdleWorkersHarvest(None, None),
+    OverWorkersHarvest(None, None),
     UnitsRule(
         {
             "alignment": "player",
@@ -216,7 +268,8 @@ DEMO_RULES_2 = [
             "query_params": {"unit_type": UnitTypeIds.COMMANDCENTER.value, "build_progress": 1},
             "evaluation": lambda units: len(units) > 1,
         },
-        [Harvest({"composition": {UnitTypeIds.SCV.value: 10}}, Harvest.MINERAL)],
+        [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
+        [Build(UnitTypeIds.REFINERY.value) for _ in range(2)],
         burner=True,
     ),
     ActionsRule(
@@ -236,4 +289,6 @@ DEMO_RULES_2 = [
 IDLE_RULES = [
     DefendIdleUnits(None, None),
     TerminateIdleUnits(None, None),
+    IdleWorkersHarvest(None, None),
+    OverWorkersHarvest(None, None),
 ]
