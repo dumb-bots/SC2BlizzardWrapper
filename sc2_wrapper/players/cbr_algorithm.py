@@ -65,6 +65,7 @@ class CBRAlgorithm(RulesPlayer):
                     break
             if selected_case:
                 actions = selected_case["actions"]  # List of actions for the case
+                print("Actions " + str(actions))
                 if actions:
                     list_of_actions = []
                     selected_actions = []
