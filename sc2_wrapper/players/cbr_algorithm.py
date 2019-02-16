@@ -23,7 +23,7 @@ class CBRAlgorithm(RulesPlayer):
         start = time.time()
         cbr_actions = await self.determine_actions(raw)
         # cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
-        translated_actions = self.raw_actions_to_player_actions(cbr_actions[:10], game_state)
+        translated_actions = self.raw_actions_to_player_actions(cbr_actions[:20], game_state)
         self.actions_queue += translated_actions
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
         end = time.time()
@@ -72,7 +72,7 @@ class CBRAlgorithm(RulesPlayer):
                     for action in actions:
                         list_of_actions.append([action, self.evaluate_action(action)])
                     maximum_fitness = max(map(lambda x: x[1], list_of_actions))
-                    list_of_actions = list(map(lambda x: [x[0], x[1] / maximum_fitness], list_of_actions))
+                    list_of_actions = list(map(lambda x: [x[0], x[1] / maximum_fitness * x[0]["games"] / selected_case[0]], list_of_actions))
                     print(list_of_actions)
                     for action in list_of_actions:
                         rnd = random.uniform(0,1)
@@ -84,13 +84,13 @@ class CBRAlgorithm(RulesPlayer):
     #Returns the distance between two cases    
     def get_distance(self, situation, case):
         distance = 0
-        distance += abs(situation["minerals"] - case["observation"]["minerals"])
-        distance += abs(situation["vespene"] - case["observation"]["vespene"])
-        distance += abs(situation["foodCap"] - case["observation"]["foodCap"])
-        distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"])
+        distance += abs(situation["minerals"] - case["observation"]["minerals"]) * 100
+        distance += abs(situation["vespene"] - case["observation"]["vespene"]) * 100
+        distance += abs(situation["foodCap"] - case["observation"]["foodCap"]) * 100
+        distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"]) * 100
         distance += abs(situation["foodArmy"] - case["observation"]["foodArmy"])
         distance += abs(situation["foodWorkers"] - case["observation"]["foodWorkers"])
-        distance += abs(situation["idleWorkerCount"] - case["observation"]["idleWorkerCount"])
+        distance += abs(situation["idleWorkerCount"] - case["observation"]["idleWorkerCount"]) * 100
         distance += abs(situation["armyCount"] - case["observation"]["armyCount"])
         distance += abs(situation["warpGateCount"] - case["observation"]["warpGateCount"])
         distance += abs(situation["loop"] - case["observation"]["loop"])
