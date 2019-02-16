@@ -64,13 +64,7 @@ class CBRAlgorithm(RulesPlayer):
                     break
             if selected_case:
                 actions = selected_case["actions"]  # List of actions for the case
-                if actions:
-                    list_of_actions = []
-                    for action in actions:
-                        random_number_action = random.uniform(0, 1)
-                        if random_number_action <= self.evaluate_action(action):
-                            list_of_actions.append(action)
-                    actions = list_of_actions
+                actions = sorted(lambda x: x["games"], actions)
         return actions
 
     #Returns the distance between two cases    
