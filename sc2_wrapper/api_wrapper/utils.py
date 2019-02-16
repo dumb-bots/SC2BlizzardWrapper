@@ -415,15 +415,11 @@ def obs_to_case(obs, game_info):
             resumed_units.append(
                 {
                     "type": unit.get("unitType",0),
-                    "display": unit["displayType"],
                     "alliance": unit["alliance"],
                     "position": {
                         "x": round(unit["pos"]["x"]),
                         "y": round(unit["pos"]["y"]),
-                        "z": round(unit["pos"]["z"])
                     },
-                    "health": round(unit.get("health",0) / unit.get("healthMax",1) * 4),
-                    "buildProgress": round(unit.get("buildProgress",0) * 4)
                 }
             )
     resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["position"]["z"], k["health"]))
@@ -453,6 +449,8 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
                 if "targetWorldSpacePos" in action.keys():
+                    if action["abilityId"] == 1:
+                        continue
                     resumed_action["targetPoint"] = {
                         "x" : round(action["targetWorldSpacePos"]["x"]),
                         "y" : round(action["targetWorldSpacePos"]["y"])
@@ -494,11 +492,11 @@ def units_by_tag(obs):
         if unit.get("tag",None):
             by_tag[unit["tag"]] = {
                 "type": unit.get("unitType",None),
+                "alliance": unit["alliance"],
                 "position":
                 {
                     "x": round(unit["pos"]["x"]),
-                    "y": round(unit["pos"]["y"]),
-                    "z": round(unit["pos"]["z"])
+                    "y": round(unit["pos"]["y"])
                 }
             }
     return by_tag
