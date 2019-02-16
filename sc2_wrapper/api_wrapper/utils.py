@@ -422,7 +422,7 @@ def obs_to_case(obs, game_info):
                     },
                 }
             )
-    resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["position"]["z"], k["health"]))
+    resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["alliance"]))
     observation = obs["observation"]["observation"]["playerCommon"]
     observation["loop"] = obs["observation"]["observation"]["gameLoop"]
     observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
@@ -448,6 +448,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     "id": action["abilityId"],
                     "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
+                resumed_action["units"] = sorted(resumed_action["units"], key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["alliance"]))
                 if "targetWorldSpacePos" in action.keys():
                     if action["abilityId"] == 1:
                         continue
@@ -464,6 +465,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     "id": action.get("abilityId", None),
                     "units": list(reduce(lambda x, y: x + [units_by_tag[y]] if units_by_tag.get(y, None) else x,action.get("unitTags", []),[]))
                 }
+                resumed_action["units"] = sorted(resumed_action["units"], key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["alliance"]))
             if resumed_action:
                 resumed_action["games"] = 1
                 resumed_action["wins"] = 1 if result  == 1 else 0
