@@ -36,7 +36,7 @@ class CBRAlgorithm(RulesPlayer):
             for case in self.cases:
                 value = self.cases_by_loop.get(round(case["observation"]["loop"] / float(200)), [])
                 value.append(case)
-                self.cases_by_loop[round(case["observation"]["loop"] / float(200)] = value
+                self.cases_by_loop[round(case["observation"]["loop"] / float(200))] = value
         if self.cases_by_loop:
             look_cases = self.cases_by_loop[round(situation["loop"] / float(200))]
             for case in look_cases:
