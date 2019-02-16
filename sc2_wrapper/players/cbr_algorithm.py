@@ -70,6 +70,7 @@ class CBRAlgorithm(RulesPlayer):
                     selected_actions = []
                     for action in actions:
                         list_of_actions.append([action, self.evaluate_action(action)])
+                    print(list_of_actions)
                     total = max(map(lambda x: x[1], items))
                     list_of_actions = list(map(lambda x: [x[0], x[1] / total], list_of_actions))
                     for action in list_of_actions:
