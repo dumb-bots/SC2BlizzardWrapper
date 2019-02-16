@@ -16,6 +16,7 @@ class CBRAlgorithm(RulesPlayer):
             **kwargs
     ):
         self.cases = cases
+        self.cases_by_loop = {}
         await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
@@ -30,11 +31,17 @@ class CBRAlgorithm(RulesPlayer):
         print(situation["loop"])
         probabilities_per_case = []
         actions = []
-        if self.cases:
+        if situation["loop"] == 0:
+            self.cases = filter(lambda x: x["observation"]["startingPoints"] == situation["startingPoints"], self.cases)
             for case in self.cases:
-                if case["observation"]["startingPoints"] == situation["startingPoints"] and (case["observation"]["loop"] <= situation["loop"] + 720 and case["observation"]["loop"] >= situation["loop"] - 720):
-                    case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
-                    probabilities_per_case.append([case, case_evaluation])
+                value = self.cases_by_loop.get(round(case["observation"]["loop"] / float(200)), [])
+                value.append(case)
+                self.cases_by_loop[round(case["observation"]["loop"] / float(200)] = value
+        if self.cases_by_loop:
+            look_cases = self.cases_by_loop[round(situation["loop"] / float(200))]
+            for case in look_cases:
+                case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
+                probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
             items = sorted(items, key=lambda x: x[1])
             items = items[-100:]
