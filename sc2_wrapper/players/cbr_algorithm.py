@@ -40,10 +40,10 @@ class CBRAlgorithm(RulesPlayer):
         probabilities_per_case = []
         actions = []
         if self.cases:
-            for case in self.cases:
-                if (case["observation"]["loop"] <= situation["loop"] + 720 and case["observation"]["loop"] >= situation["loop"] - 720):
-                    case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
-                    probabilities_per_case.append([case, case_evaluation])
+            looking_cases = self.cases_by_loop[round(situation["loop"]/ float(172))]
+            for case in looking_cases:
+                case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
+                probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
             items = sorted(items, key=lambda x: x[1])
             items = items[-100:]
