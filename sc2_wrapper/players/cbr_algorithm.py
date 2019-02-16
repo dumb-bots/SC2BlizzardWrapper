@@ -132,9 +132,10 @@ class CBRAlgorithm(RulesPlayer):
     def evaluate_case(self, situation, case):
         won = case["wins"]
         count = case["games"]
+        lost = action["looses"]
         distance = self.get_distance(situation, case)
         #distance = 0
-        case_eval = (count / (count + 10)) * (((2 * won) / count) - 1) * (1 / (1 + distance))
+        case_eval = (count / (count + 10)) * ((won - lost) / (won + lost)) * (1 / (1 + distance))
         # case_eval = 1 / (1 + distance)
         return case_eval
 
@@ -142,7 +143,8 @@ class CBRAlgorithm(RulesPlayer):
     def evaluate_action(self, action):
         count = action["games"]
         won = action["wins"]
-        eval_action = (count / (count + 10)) * (((2 * won) / count) - 1)
+        lost = action["looses"]
+        eval_action = (count / (count + 10)) * ((won - lost) / (won + lost))
         return eval_action
 
     def units_distance(self, unit1, unit2):
