@@ -745,7 +745,7 @@ class ActionsPlayer(Player):
                     print("{} executed".format(action))
             else:
                 remaining_actions.append(action)
-        return remaining_actions[-30:]
+        return remaining_actions[-10:]
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         new_actions = self.get_required_actions(game_state)

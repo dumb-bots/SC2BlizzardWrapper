@@ -21,7 +21,7 @@ class CBRAlgorithm(RulesPlayer):
     async def process_step(self, ws, game_state, raw=None, actions=None):
         cbr_actions = await self.determine_actions(raw)
         # cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
-        translated_actions = self.raw_actions_to_player_actions(cbr_actions[:20], game_state)
+        translated_actions = self.raw_actions_to_player_actions(cbr_actions[:10], game_state)
         self.actions_queue += translated_actions
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
 
