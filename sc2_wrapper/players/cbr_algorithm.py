@@ -127,8 +127,8 @@ class CBRAlgorithm(RulesPlayer):
         count = case["games"]
         distance = self.get_distance(situation, case)
         #distance = 0
-        case_eval = (count / (count + 10)) * (((2 * won) / count) - 1) * (1 / (1 + distance))
-        # case_eval = 1 / (1 + distance)
+        # case_eval = (count / (count + 10)) * (((2 * won) / count) - 1) * (1 / (1 + distance))
+        case_eval = 1 / (1 + distance)
         return case_eval
 
     #Returns te action evaluation
