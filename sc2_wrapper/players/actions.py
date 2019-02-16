@@ -27,6 +27,7 @@ class Action:
     READY = 'ready'
 
     def __init__(self):
+        self.fail_counter = 0
         self.ability_id = None
         self.target = None
 
@@ -390,7 +391,7 @@ class Expansion(Build):
             UnitTypeIds.PLANETARYFORTRESS.value
         ]}
         player_positions = game_state.player_units.filter(**unit_filter).values('pos', flat_list=True)
-        enemy_positions = game_state.player_units.filter(**unit_filter).values('pos', flat_list=True)
+        enemy_positions = game_state.enemy_units.filter(**unit_filter).values('pos', flat_list=True)
         return [(pos.x, pos.y) for pos in player_positions + enemy_positions]
 
     def _get_point(self, game_state):
@@ -735,16 +736,42 @@ class ActionsPlayer(Player):
             if state == Action.READY:
                 success = await action.perform_action(ws, game_state)
                 if success != 1:
-                    remaining_actions.append(action)
+                    if action.fail_counter < 5:
+                        action.fail_counter += 1
+                        remaining_actions.append(action)
+                    else:
+                        print("{} failed several times in-game discarded".format(action))
+                else:
+                    print("{} executed".format(action))
             else:
                 remaining_actions.append(action)
-        return remaining_actions
+        return remaining_actions[-30:]
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         new_actions = self.get_required_actions(game_state)
         self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
         print(new_actions)
-        print(game_state.player_info.food_used, game_state.player_info.food_cap)
+        print("{} actions in queue".format(len(new_actions)))
+        print("Supplies Log -------------------------")
+        print("Food {}/{}".format(game_state.player_info.food_used, game_state.player_info.food_cap))
+        print("Minerals {} - Harvesting: {}".format(game_state.player_info.minerals, ", ".join(mineral_stats(game_state))))
+        print("Vespene {} - Harvesting: {}".format(game_state.player_info.vespene, ", ".join(vespene_stats(game_state))))
+        print("Idle workers {}".format(idle_workers(game_state)))
+        print("--------------------------------------")
+
+
+def mineral_stats(game_state):
+    return ["TH {} - {}/{}".format(th.tag, th.assigned_harvesters, th.ideal_harvesters)
+            for th in game_state.player_units.filter(unit_type__in=[18, 130, 132]).sort_by('tag')]
+
+
+def vespene_stats(game_state):
+    return ["Refinery {} - {}/{}".format(refinery.tag, refinery.assigned_harvesters, refinery.ideal_harvesters)
+            for refinery in game_state.player_units.filter(unit_type=20).sort_by('tag')]
+
+
+def idle_workers(game_state):
+    return len(game_state.filter(unit_type=45, orders__attlength=0))
 
 
 DEMO_ACTIONS = [Train(UnitTypeIds.MARAUDER.value, 10)]
