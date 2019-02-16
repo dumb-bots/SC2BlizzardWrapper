@@ -71,7 +71,7 @@ class CBRAlgorithm(RulesPlayer):
                     selected_actions = []
                     for action in actions:
                         list_of_actions.append([action, self.evaluate_action(action)])
-=                    print(list_of_actions)
+                    print(list_of_actions)
                     list_of_actions = list(map(lambda x: [x[0], x[1] / selected_case["games"]], list_of_actions))
                     for action in list_of_actions:
                         rnd = random.uniform(0,1)
