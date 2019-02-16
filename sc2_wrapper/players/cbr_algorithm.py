@@ -64,7 +64,7 @@ class CBRAlgorithm(RulesPlayer):
                     break
             if selected_case:
                 actions = selected_case["actions"]  # List of actions for the case
-                actions = sorted(lambda x: x["games"], actions)
+                actions = sorted(actions,key=lambda x: x["games"])
         return actions
 
     #Returns the distance between two cases    
