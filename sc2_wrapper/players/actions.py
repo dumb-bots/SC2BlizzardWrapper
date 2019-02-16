@@ -756,7 +756,7 @@ class ActionsPlayer(Player):
         print("Food {}/{}".format(game_state.player_info.food_used, game_state.player_info.food_cap))
         print("Minerals {} - Harvesting: {}".format(game_state.player_info.minerals, ", ".join(mineral_stats(game_state))))
         print("Vespene {} - Harvesting: {}".format(game_state.player_info.vespene, ", ".join(vespene_stats(game_state))))
-        print("Workers (idle/total) {}/{}".format(*idle_workers(game_state)))
+        # print("Workers (idle/total) {}/{}".format(*idle_workers(game_state)))
         print("--------------------------------------")
 
 
