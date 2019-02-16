@@ -39,11 +39,27 @@ loop = asyncio.get_event_loop()
 # finally:
 #     loop.close()
 # tr.print_diff()
-observations = []
-for i in range(0, 80):
-    print(i)
-    r = requests.get("http://dumbbots.ddns.net/sample/")
-    observations += r.json()
+
+# observations = []
+# i = 0
+# while i < 80:
+#     print(i)
+#     r = requests.get("http://dumbbots.ddns.net/sample/")
+#     print(r)
+#     if r.status_code == 200:
+#         observations += r.json()
+#         i += 1
+#     else:
+#         print("Error, retrying")
+#
+# a = open('test_obs.txt', 'w')
+# a.write(json.dumps(observations))
+# a.close()
+
+a = open('test_obs.txt', 'r')
+observations = json.loads(a.read())
+a.close()
+
 
 # while True:
 

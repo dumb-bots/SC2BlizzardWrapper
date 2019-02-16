@@ -21,8 +21,8 @@ class CBRAlgorithm(RulesPlayer):
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         cbr_actions = await self.determine_actions(raw)
-        cbr_actions = list(filter(lambda x: x["id"] != 1 or (x["id"] == 1 and "targetUnit" in x.keys()), cbr_actions))
-        translated_actions = self.raw_actions_to_player_actions(cbr_actions, game_state)
+        # cbr_actions = list(filter(lambda x: x["id"] != 1, cbr_actions))
+        translated_actions = self.raw_actions_to_player_actions(cbr_actions[:10], game_state)
         self.actions_queue += translated_actions
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
 
@@ -159,15 +159,20 @@ class CBRAlgorithm(RulesPlayer):
         target_point = self._target_point_from_action(action)
         target_unit = self._target_unit_from_action(action, game_state)
 
+        if action_id == 1 and not target_unit:
+            return
+
         # Check Build Actions
         built_unit = BUILD_ABILITY_UNIT.get(action_id)
         if built_unit:
             if UNIT_DATA.get(built_unit, {}).get('food_required', 0) > 0:
                 return actions.Train(built_unit)
             elif built_unit == UnitTypeIds.COMMANDCENTER.value:
-                print("EXPANSIONING!")
-                return actions.Expansion()
+                return actions.Expansion(target_point)
             else:
+                if (built_unit in [48, 49]):
+                    print("WHAT THE FUCK ARE YOU DOING?")
+                    print(UNIT_DATA.get(built_unit, {}).get('food_required', 0))
                 return actions.Build(built_unit, target_point)
 
         # Check upgrades

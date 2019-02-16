@@ -120,7 +120,6 @@ class DefendIdleUnits(TerminateIdleUnits):
         return self.match_query_output(game_state) and self.idle_units(game_state)
 
     def next_actions(self, game_state):
-        print("DEFENDING!")
         return [Attack(
             {"query": {"tag__in": self.idle_units(game_state).values('tag', flat_list=True)}},
             target_unit={
@@ -182,13 +181,14 @@ DEMO_RULES_1 = [
 DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
                        [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(2)] + \
                        [Build(UnitTypeIds.REFINERY.value)] + \
-                       [Train(UnitTypeIds.MARINE.value, 1) for _ in range(40)] + \
-                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(10)] + \
+                       [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)] + \
+                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] + \
                        [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(4)] + \
                        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(4)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value)] + \
+                       [Expansion()] + \
                        [Expansion()] + \
                        [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
                        [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
