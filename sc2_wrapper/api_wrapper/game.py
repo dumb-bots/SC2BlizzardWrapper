@@ -342,6 +342,7 @@ class Replay(Game):
                         previous["actions"] = actual["actions"]
                         previous["observation"].pop("playerId")
                         yield previous
+                        print(previous["observation"]["loop"])
                     previous = actual
                     request_payload = api.Request()
                     request_payload.step.count = step
