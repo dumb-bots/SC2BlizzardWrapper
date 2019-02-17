@@ -423,12 +423,13 @@ def obs_to_case(obs, game_info):
                 }
             )
     resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["alliance"]))
-    observation = obs["observation"]["observation"]["playerCommon"]
-    observation["loop"] = obs["observation"]["observation"]["gameLoop"]
-    observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
-    observation["upgrades"] = sorted(observation["upgrades"])
-    observation["units"] = resumed_units
-    observation["startingPoints"] = game_info["startLocations"]
+    observation = obs.get("observation", {}).get("observation", {}).get("playerCommon",{})
+    if observation:
+        observation["loop"] = obs["observation"]["observation"]["gameLoop"]
+        observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
+        observation["upgrades"] = sorted(observation["upgrades"])
+        observation["units"] = resumed_units
+        observation["startingPoints"] = game_info["startLocations"]
     return observation
 
 
