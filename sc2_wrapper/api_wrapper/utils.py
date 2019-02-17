@@ -228,6 +228,19 @@ def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.va
                 continue
 
             for unit_dependency in unit_dependencies:
+                # Engineering bay recursion control
+                if unit_id == UnitTypeIds.ENGINEERINGBAY.value and unit_dependency == UnitTypeIds.ORBITALCOMMAND.value:
+                    if UnitTypeIds.ORBITALCOMMAND.value in existing_units:
+                        return []
+                    elif UnitTypeIds.ENGINEERINGBAY.value not in existing_units:
+                        continue
+
+                if unit_id == UnitTypeIds.ENGINEERINGBAY.value and unit_dependency == UnitTypeIds.PLANETARYFORTRESS.value:
+                    if UnitTypeIds.PLANETARYFORTRESS.value in existing_units:
+                        return []
+                    elif UnitTypeIds.ENGINEERINGBAY.value not in existing_units:
+                        continue
+
                 additional_dependencies = return_current_unit_dependencies(
                     unit_dependency, existing_units
                 )
