@@ -336,23 +336,24 @@ class Replay(Game):
                     obs = obs.replace("False", "false")
                     obs = obs.replace("True", "true")
                     obs = json.loads(obs,encoding="UTF-8")
-                    game_units_by_tag.update(units_by_tag(obs))
-                    actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
-                    if previous:
-                        previous["actions"] = actual["actions"]
-                        previous["observation"].pop("playerId")
-                        yield previous
-                        print(previous["observation"]["loop"])
-                    previous = actual
-                    request_payload = api.Request()
-                    request_payload.step.count = step
-                    await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
-                    result = await asyncio.wait_for(ws.recv(),timeout=1)
-                    response = api.Response.FromString(result)
-                    if response.status == 4:
-                        self.status = "replay"
-                    else:
-                        self.status = "finished"
+                    if obs:
+                        game_units_by_tag.update(units_by_tag(obs))
+                        actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
+                        if previous:
+                            previous["actions"] = actual["actions"]
+                            previous["observation"].pop("playerId")
+                            yield previous
+                            print(previous["observation"]["loop"])
+                        previous = actual
+                        request_payload = api.Request()
+                        request_payload.step.count = step
+                        await asyncio.wait_for(ws.send(request_payload.SerializeToString()), timeout=1)
+                        result = await asyncio.wait_for(ws.recv(),timeout=1)
+                        response = api.Response.FromString(result)
+                        if response.status == 4:
+                            self.status = "replay"
+                        else:
+                            self.status = "finished"
                 except Exception:
                     print(traceback.format_exc())
                     continue
