@@ -336,7 +336,7 @@ class Replay(Game):
                     obs = obs.replace("False", "false")
                     obs = obs.replace("True", "true")
                     obs = json.loads(obs,encoding="UTF-8")
-                    if obs:
+                    if obs.get("observation", {}).get("observation", {}):
                         game_units_by_tag.update(units_by_tag(obs))
                         actual = obs_to_case_replay(obs, self.replay_info, self.game_info, game_units_by_tag)
                         if previous:
