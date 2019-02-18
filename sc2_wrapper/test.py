@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from client import *
 from os import listdir
 from os.path import isfile, join
@@ -43,18 +45,20 @@ loop = asyncio.get_event_loop()
 # observations = []
 # i = 0
 # while i < 80:
-#     print(i)
+#     print("{} - Sending Request {}".format(datetime.now(), i))
 #     r = requests.get("http://dumbbots.ddns.net/sample/")
-#     print(r)
+#     print("{} - Request {} response: {}".format(datetime.now(), i, r))
 #     if r.status_code == 200:
 #         observations += r.json()
 #         i += 1
 #     else:
 #         print("Error, retrying")
 #
+# print("Writing backup file")
 # a = open('test_obs.txt', 'w')
 # a.write(json.dumps(observations))
 # a.close()
+# print("Backup file ready")
 
 a = open('test_obs.txt', 'r')
 observations = json.loads(a.read())

@@ -174,7 +174,7 @@ class CBRAlgorithm(RulesPlayer):
 
         unit_group = self._unit_group_from_action(action)
         target_point = self._target_point_from_action(action)
-        target_unit = self._target_unit_from_action(action, game_state)
+        target_unit, target_point = self._target_unit_from_action(action, target_point, game_state)
 
         if action_id == 1 and not target_unit:
             return
@@ -216,11 +216,15 @@ class CBRAlgorithm(RulesPlayer):
             return target_point.get("x", 0), target_point.get("y", 0)
         return None
 
-    def _target_unit_from_action(self, action, game_state):
+    def _target_unit_from_action(self, action, target_point, game_state):
         target_unit = action.get('targetUnit')
         if target_unit:
-            return self._get_unit_info(game_state, target_unit)
-        return None
+            unit_info = self._get_unit_info(game_state, target_unit)
+            if unit_info:
+                return unit_info, target_point
+            else:
+                return None, (target_unit['position']['x'], target_unit['position']['y'])
+        return None, target_point
 
     def _get_unit_info(self, game_state, target_unit):
         unit_type = target_unit['type']
@@ -237,7 +241,11 @@ class CBRAlgorithm(RulesPlayer):
         closest_list = [u for u in [closest_p_unit, closest_e_unit, closest_n_unit] if u is not None]
 
         if closest_list:
-            unit_id = min(closest_list, key=lambda u: u.last_distance_to).tag
+            unit = min(closest_list, key=lambda u: u.last_distance_to)
+            if unit.last_distance_to > 30:
+                return None
+
+            unit_id = unit.tag
             if unit_id in p_units.values('tag', flat_list=True):
                 alignment = "own"
             elif unit_id in e_units.values('tag', flat_list=True):
