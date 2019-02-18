@@ -47,10 +47,11 @@ class CBRAlgorithm(RulesPlayer):
                 self.cases_by_loop[round(case["observation"]["loop"] / float(200))] = value
         if self.cases_by_loop:
             look_cases = self.cases_by_loop.get(round(situation["loop"] / float(200)), [])
-            if not look_cases:
+            if not look_cases and situation["loop"] > 40000:
                 keys = sorted(look_cases.keys())[-10:]
                 look_cases = look_cases[keys[random.randint(0,9)]]
-
+            if not look_cases:
+                return actions
             for case in look_cases:
                 case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
                 probabilities_per_case.append([case, case_evaluation])
