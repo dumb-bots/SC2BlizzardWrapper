@@ -48,7 +48,7 @@ class CBRAlgorithm(RulesPlayer):
         if self.cases_by_loop:
             look_cases = self.cases_by_loop.get(round(situation["loop"] / float(200)), [])
             if not look_cases and situation["loop"] > 40000:
-                keys = sorted(look_cases.keys())[-10:]
+                keys = sorted(self.cases_by_loop.keys())[-10:]
                 look_cases = look_cases[keys[random.randint(0,9)]]
             if not look_cases:
                 return actions
