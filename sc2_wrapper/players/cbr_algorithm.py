@@ -158,12 +158,8 @@ class CBRAlgorithm(RulesPlayer):
 
     def units_distance(self, unit1, unit2):
         distance = 0
-        if unit1["display"] != unit2["display"]:
-            distance += 1
         if unit1["alliance"] != unit2["alliance"]:
             distance += 1
-        distance += abs(unit1["health"] - unit2["health"]) 
-        distance += abs(unit1["buildProgress"] - unit2["buildProgress"])
         distance += ((unit1["position"]["x"] - unit2["position"]["x"]) ** 2  + (unit1["position"]["y"] - unit2["position"]["y"]) ** 2) ** (1/2)
         return distance
 
