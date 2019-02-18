@@ -153,7 +153,7 @@ class PlayerVSIA(PlayedGame):
                 results = [await self.player.advance_time(step)]
                 if results[0]:
                     if results[0].observation.player_result:
-                        result = results[0].observation.player_result[1].result
+                        result = results[0].observation.player_result[results[0].observation.observation.player_common.player_id -1].result
                     if results[0].status == 3:
                         self.status = "started"
                     else:
