@@ -271,7 +271,7 @@ def return_current_unit_dependencies(unit_id, existing_units=(UnitTypeIds.SCV.va
 
 def return_current_ability_dependencies(ability_id, existing_upgrades=set()):
     if ability_id in existing_upgrades:
-        return None
+        return []
     upgrade_required = ABILITY_DEPENDENCIES.get(ability_id, None)
     if upgrade_required and upgrade_required not in existing_upgrades:
         parent_upgrades = return_missing_parent_upgrades(
