@@ -80,7 +80,11 @@ class Action:
 
         ready_units = self.get_units_ready_for_action(game_state)
         missing_units = len(self.return_units_required(game_state, ready_units))
-        missing_upgrades = len(self.return_upgrades_required(existing_upgrades))
+        aux = self.return_upgrades_required(existing_upgrades)
+        if not aux:
+            missing_upgrades = 0
+        else:
+            missing_upgrades = len(aux)
 
         # Determine action state
         if missing_units > 0 or missing_upgrades > 0:
