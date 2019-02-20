@@ -229,28 +229,26 @@ class CBRAlgorithm(RulesPlayer):
     def _get_unit_info(self, game_state, target_unit):
         unit_type = target_unit['type']
         unit_position = target_unit['position']['x'], target_unit['position']['y']
-        p_units = game_state.player_units.filter(unit_type=unit_type).add_calculated_values(
-            distance_to={'pos': unit_position})
-        closest_p_unit = min(p_units, key=lambda u: u.last_distance_to) if p_units else None
-        e_units = game_state.player_units.filter(unit_type=unit_type).add_calculated_values(
-            distance_to={'pos': unit_position})
-        closest_e_unit = min(e_units, key=lambda u: u.last_distance_to) if e_units else None
-        n_units = game_state.player_units.filter(unit_type=unit_type).add_calculated_values(
-            distance_to={'pos': unit_position})
-        closest_n_unit = min(n_units, key=lambda u: u.last_distance_to) if n_units else None
-        closest_list = [u for u in [closest_p_unit, closest_e_unit, closest_n_unit] if u is not None]
+        if target_unit['alliance'] == 'Self':
+            alignment = "own"
+            unit_group = game_state.player_units
+        elif target_unit['alliance'] == 'Enemy':
+            alignment = "enemy"
+            unit_group = game_state.enemy_units
+        elif target_unit['alliance'] == 'Neutral':
+            alignment = "neutral"
+            unit_group = game_state.neutral_units
+        else:
+            return None
 
-        if closest_list:
-            unit = min(closest_list, key=lambda u: u.last_distance_to)
+        p_units = unit_group.filter(unit_type=unit_type).add_calculated_values(
+            distance_to={'pos': unit_position})
+        if p_units:
+            unit = min(p_units, key=lambda u: u.last_distance_to) if p_units else None
             if unit.last_distance_to > 30:
                 return None
 
             unit_id = unit.tag
-            if unit_id in p_units.values('tag', flat_list=True):
-                alignment = "own"
-            elif unit_id in e_units.values('tag', flat_list=True):
-                alignment = "enemy"
-            else:
-                alignment = "neutral"
             return {"ids": [unit_id], "alignment": alignment}
-        return None
+        else:
+            return None
