@@ -441,7 +441,17 @@ def obs_to_case(obs, game_info):
             )
     resumed_units = sorted(resumed_units, key= lambda k : (k["type"], k["position"]["x"], k["position"]["y"], k["alliance"]))
     observation = obs["observation"]["observation"]["playerCommon"]
-    observation["loop"] = obs["observation"]["observation"]["gameLoop"]
+    obs.pop("foodArmy")
+    obs.pop("foodWorkers")
+    obs.pop("warpGateCount")
+    obs.pop("armyCount")
+    obs.pop("idleWorkerCount")
+    obs["minerals"] = round(obs["minerals"] / float(100))
+    obs["vespene"] = round(obs["vespene"] / float(100))
+    obs["food"] = obs["foodCap"] - obs["foodUsed"]
+    obs.pop("foodCap")
+    obs.pop("foodUsed")
+    observation["loop"] = round(obs["observation"]["observation"]["gameLoop"] / float(10)) * 10
     observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
     observation["upgrades"] = sorted(observation["upgrades"])
     observation["units"] = resumed_units
