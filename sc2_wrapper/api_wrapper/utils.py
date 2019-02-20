@@ -421,6 +421,10 @@ def group_resources(game_state):
 
 
 def obs_to_case(obs, game_info):
+    MAP_X = 134
+    MAP_Y = 142
+    X_RESOLUTION = float(MAP_X / 4)
+    Y_RESOLUTION = float(MAP_Y / 4)
     resumed_units = []
     units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -430,8 +434,8 @@ def obs_to_case(obs, game_info):
                     "type": unit.get("unitType",0),
                     "alliance": unit["alliance"],
                     "position": {
-                        "x": round(unit["pos"]["x"]),
-                        "y": round(unit["pos"]["y"]),
+                        "x": round(unit["pos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
+                        "y": round(unit["pos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
                     },
                 }
             )
@@ -446,6 +450,10 @@ def obs_to_case(obs, game_info):
 
 
 def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
+    MAP_X = 134
+    MAP_Y = 142
+    X_RESOLUTION = float(MAP_X / 4)
+    Y_RESOLUTION = float(MAP_Y / 4)
     actions = obs.get("observation",{}).get("actions", [])
     obs = obs_to_case(obs, game_info)
     resumed_actions = []
@@ -466,8 +474,8 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     if action["abilityId"] == 1:
                         continue
                     resumed_action["targetPoint"] = {
-                        "x" : round(action["targetWorldSpacePos"]["x"]),
-                        "y" : round(action["targetWorldSpacePos"]["y"])
+                        "x" : round(action["targetWorldSpacePos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
+                        "y" : round(action["targetWorldSpacePos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
                     }
                 elif "targetUnitTag" in action.keys():
                     targetUnit = units_by_tag.get(action["targetUnitTag"],None)
@@ -501,6 +509,10 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
 
 
 def units_by_tag(obs):
+    MAP_X = 134
+    MAP_Y = 142
+    X_RESOLUTION = float(MAP_X / 4)
+    Y_RESOLUTION = float(MAP_Y / 4)
     by_tag = {}
     units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -510,8 +522,8 @@ def units_by_tag(obs):
                 "alliance": unit["alliance"],
                 "position":
                 {
-                    "x": round(unit["pos"]["x"]),
-                    "y": round(unit["pos"]["y"])
+                    "x": round(unit["pos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
+                    "y": round(unit["pos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
                 }
             }
     return by_tag
