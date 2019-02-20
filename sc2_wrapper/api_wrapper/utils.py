@@ -424,7 +424,7 @@ def obs_to_case(obs, game_info):
     MAP_X = 134
     MAP_Y = 142
     X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 4)
+    Y_RESOLUTION = float(MAP_Y / 5)
     resumed_units = []
     units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -453,7 +453,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
     MAP_X = 134
     MAP_Y = 142
     X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 4)
+    Y_RESOLUTION = float(MAP_Y / 5)
     actions = obs.get("observation",{}).get("actions", [])
     obs = obs_to_case(obs, game_info)
     resumed_actions = []
@@ -512,7 +512,7 @@ def units_by_tag(obs):
     MAP_X = 134
     MAP_Y = 142
     X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 4)
+    Y_RESOLUTION = float(MAP_Y / 5)
     by_tag = {}
     units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
