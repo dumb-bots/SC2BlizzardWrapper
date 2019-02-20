@@ -211,8 +211,10 @@ class Action:
         return reduced
 
     def add_build_actions(self, unit_id, amount, game_state, units_queue, upgrades_queue, required_actions):
-        # TODO: Check if build or train
-        action_required = Build(unit_id)
+        if UNIT_DATA.get(unit_id, {}).get('food_required', 0) > 0:
+            action_required = Train(unit_id)
+        else:
+            action_required = Build(unit_id)
 
         # Add unit dependencies
         units_queue.append(unit_id)
@@ -227,7 +229,11 @@ class Action:
                 game_state.player_info.vespene -= v
 
             # Add a build action for required unit
-            required_actions.append((Build(unit_id), state))
+            if UNIT_DATA.get(unit_id, {}).get('food_required', 0) > 0:
+                action = Train(unit_id)
+            else:
+                action = Build(unit_id)
+            required_actions.append((action, state))
 
     def units_in_build_queue(self, game_state):
         worker_orders = game_state.player_units.filter(name='SCV').values('orders', flat_list=True)
@@ -832,6 +838,10 @@ class ActionsPlayer(Player):
         print("Minerals {} - Harvesting: {}".format(game_state.player_info.minerals, ", ".join(mineral_stats(game_state))))
         print("Vespene {} - Harvesting: {}".format(game_state.player_info.vespene, ", ".join(vespene_stats(game_state))))
         print("Workers (idle/total) {}/{}".format(*idle_workers(game_state)))
+        print("Worker tasks:")
+        tasks = worker_tasks(game_state)
+        for order, count in tasks.items():
+            print("\tAbility {}: {}".format(order, count))
         print("--------------------------------------")
 
 
@@ -849,6 +859,14 @@ def idle_workers(game_state):
     workers = game_state.player_units.filter(unit_type=45)
     return len(workers.filter(orders__attlength=0)), len(workers)
 
+
+def worker_tasks(game_state):
+    orders = game_state.player_units.filter(unit_type=45).values('orders', flat_list=True)
+    orders = [o.ability_id for o in itertools.chain(*orders)]
+    orders_h = {}
+    for o in orders:
+        orders_h[o] = orders_h.get(o, 0) + 1
+    return orders_h
 
 DEMO_ACTIONS = [Train(UnitTypeIds.MARAUDER.value, 10)]
 DEMO_ACTIONS_2 = [Train(UnitTypeIds.MARINE.value, 1) for _ in range(3)]

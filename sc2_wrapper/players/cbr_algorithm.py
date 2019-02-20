@@ -96,14 +96,21 @@ class CBRAlgorithm(RulesPlayer):
         distance = 0
         distance += abs(situation["minerals"] - case["observation"]["minerals"]) * 100
         distance += abs(situation["vespene"] - case["observation"]["vespene"]) * 100
-        distance += abs(situation["foodCap"] - case["observation"]["foodCap"]) * 100
-        distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"]) * 100
-        distance += abs(situation["foodArmy"] - case["observation"]["foodArmy"])
-        distance += abs(situation["foodWorkers"] - case["observation"]["foodWorkers"])
-        distance += abs(situation["idleWorkerCount"] - case["observation"]["idleWorkerCount"]) * 100
-        distance += abs(situation["armyCount"] - case["observation"]["armyCount"])
-        distance += abs(situation["warpGateCount"] - case["observation"]["warpGateCount"])
         distance += abs(situation["loop"] - case["observation"]["loop"])
+
+        # New format
+        if situation.get('food') is not None:
+            distance += abs(situation["food"] - case["observation"]["food"]) * 100
+        elif situation.get('foodCap') is not None:
+            distance += abs(situation["foodCap"] - case["observation"]["foodCap"]) * 100
+            distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"]) * 100
+            distance += abs(situation["foodArmy"] - case["observation"]["foodArmy"])
+            distance += abs(situation["foodWorkers"] - case["observation"]["foodWorkers"])
+            distance += abs(situation["idleWorkerCount"] - case["observation"]["idleWorkerCount"]) * 100
+            distance += abs(situation["armyCount"] - case["observation"]["armyCount"])
+            distance += abs(situation["warpGateCount"] - case["observation"]["warpGateCount"])
+        else:
+            print(situation)
 
         set_upgrades_union = set(situation["upgrades"] + case["observation"]["upgrades"])
         set_upgrades_intersection = set(situation["upgrades"]) & set(case["observation"]["upgrades"])
@@ -187,9 +194,6 @@ class CBRAlgorithm(RulesPlayer):
             elif built_unit == UnitTypeIds.COMMANDCENTER.value:
                 return actions.Expansion(target_point)
             else:
-                if (built_unit in [48, 49]):
-                    print("WHAT THE FUCK ARE YOU DOING?")
-                    print(UNIT_DATA.get(built_unit, {}).get('food_required', 0))
                 return actions.Build(built_unit, target_point)
 
         # Check upgrades
