@@ -451,7 +451,7 @@ def obs_to_case(obs, game_info):
     obs["food"] = obs["foodCap"] - obs["foodUsed"]
     obs.pop("foodCap")
     obs.pop("foodUsed")
-    observation["loop"] = round(obs["observation"]["observation"]["gameLoop"] / float(10)) * 10
+    observation["loop"] = round(obs["observation"]["observation"]["gameLoop"] / float(240)) * 240
     observation["upgrades"] = obs["observation"]["observation"]["rawData"]["player"].get("upgradeIds",[])
     observation["upgrades"] = sorted(observation["upgrades"])
     observation["units"] = resumed_units
