@@ -57,14 +57,19 @@ class Action:
         upgrades_required = self.return_upgrades_required(existing_upgrades)
         minerals_required, vespene_required, food_required = self.return_resources_required(game_state.game_data)
 
-        minerals_missing = minerals - minerals_required
-        minerals_missing = - minerals_missing if minerals_missing < 0 else 0
-        vespene_missing = vespene - vespene_required
-        vespene_missing = - vespene_missing if vespene_missing < 0 else 0
-        food_missing = food - food_required
-        food_missing = - food_missing if food_missing < 0 else 0
+        minerals_missing = self.resource_missing(minerals, minerals_required)
+        vespene_missing = self.resource_missing(vespene, vespene_required)
+        food_missing = self.food_missing(food, food_required)
 
         return units_required, upgrades_required, minerals_missing, vespene_missing, food_missing
+
+    def resource_missing(self, resource, resource_required):
+        resource_missing = resource - resource_required
+        resource_missing = - resource_missing if resource_missing < 0 else 0
+        return resource_missing
+
+    def food_missing(self, food, food_required):
+        return self.resource_missing(food, food_required)
 
     def get_units_ready_for_action(self, game_state):
         return game_state.player_units.filter(build_progress=1).values('unit_type', flat_list=True)
@@ -211,10 +216,7 @@ class Action:
         return reduced
 
     def add_build_actions(self, unit_id, amount, game_state, units_queue, upgrades_queue, required_actions):
-        if UNIT_DATA.get(unit_id, {}).get('food_required', 0) > 0:
-            action_required = Train(unit_id)
-        else:
-            action_required = Build(unit_id)
+        action_required = self.get_action(unit_id)
 
         # Add unit dependencies
         units_queue.append(unit_id)
@@ -229,11 +231,17 @@ class Action:
                 game_state.player_info.vespene -= v
 
             # Add a build action for required unit
-            if UNIT_DATA.get(unit_id, {}).get('food_required', 0) > 0:
-                action = Train(unit_id)
-            else:
-                action = Build(unit_id)
+            action = self.get_action(unit_id)
             required_actions.append((action, state))
+
+    def get_action(self, unit_id):
+        if UNIT_DATA.get(unit_id, {}).get('food_required', 0) > 0:
+            action_required = Train(unit_id)
+        elif unit_id == UnitTypeIds.COMMANDCENTER.value:
+            action_required = Expansion()
+        else:
+            action_required = Build(unit_id)
+        return action_required
 
     def units_in_build_queue(self, game_state):
         worker_orders = game_state.player_units.filter(name='SCV').values('orders', flat_list=True)
@@ -312,6 +320,9 @@ class Build(BuildingAction):
         super().__init__(unit_id)
         # Use to define target point
         self.placement = placement
+
+    def food_missing(self, food, food_required):
+        return 0
 
     def determine_action_state(self, game_state, units_queue, upgrades_queue):
         building_stuck = len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
@@ -471,6 +482,9 @@ class UnitAction(Action):
         self.unit_group = unit_group
         self.target_point = target_point
         self.target_unit = target_unit
+
+    def food_missing(self, food, food_required):
+        return 0
 
     def get_target_data(self, game_state):
         target = {}

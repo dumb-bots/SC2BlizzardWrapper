@@ -1,3 +1,4 @@
+import math
 import itertools
 
 import s2clientprotocol.common_pb2 as common
@@ -10,6 +11,10 @@ from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
+
+
+QUADRANT_WIDTH = 33.5
+QUADRANT_HEIGHT = 35.5
 
 
 HARVESTING_ORDERS = [
@@ -538,3 +543,13 @@ def units_by_tag(obs):
             }
     return by_tag
 
+
+def get_quadrant_center(x, y):
+    return (
+        x * QUADRANT_WIDTH + QUADRANT_WIDTH / 2.,
+        y * QUADRANT_HEIGHT + QUADRANT_HEIGHT / 2.,
+    )
+
+
+def get_unit_quadrant(unit):
+    return math.floor(unit.pos.x / QUADRANT_WIDTH), math.floor(unit.pos.y / QUADRANT_HEIGHT)

@@ -1,5 +1,5 @@
 import random
-from api_wrapper.utils import obs_to_case
+from api_wrapper.utils import obs_to_case, QUADRANT_WIDTH, get_unit_quadrant, get_quadrant_center
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -9,6 +9,7 @@ from constants.upgrade_abilities import UPGRADE_ABILITY_MAPPING
 from players import actions
 from players.rules import RulesPlayer
 import time
+
 
 class CBRAlgorithm(RulesPlayer):
     async def create(
@@ -183,7 +184,8 @@ class CBRAlgorithm(RulesPlayer):
         target_point = self._target_point_from_action(action)
         target_unit, target_point = self._target_unit_from_action(action, target_point, game_state)
 
-        if action_id == 1 and not target_unit:
+        # if action_id == 1 and not target_unit:
+        if action_id == 1:
             return
 
         # Check Build Actions
@@ -203,6 +205,8 @@ class CBRAlgorithm(RulesPlayer):
 
         # Check Unit Actions
         if action_id in [AbilityId.ATTACK_ATTACK.value, AbilityId.ATTACK.value]:
+            unit_group = self.redefine_unit_group(unit_group, game_state)
+            target_point = self.redefine_target_point(target_point, game_state)
             return actions.Attack(unit_group, target_point, target_unit)
         else:
             return actions.UnitAction(action_id, unit_group, target_point, target_unit)
@@ -256,3 +260,53 @@ class CBRAlgorithm(RulesPlayer):
             return {"ids": [unit_id], "alignment": alignment}
         else:
             return None
+
+    @staticmethod
+    def redefine_target_point(target_point, game_state):
+        if target_point is None:
+            return target_point
+
+        closest_enemy = min(
+            game_state.enemy_units.add_calculated_values(distance_to={"pos": target_point}),
+            key=lambda unit: unit.last_distance_to,
+        )
+        if closest_enemy.last_distance_to > QUADRANT_WIDTH:
+            qx, qy = get_unit_quadrant(closest_enemy)
+            redefined_target_point = get_quadrant_center(qx, qy)
+            return redefined_target_point
+        return target_point
+
+    @staticmethod
+    def redefine_unit_group(unit_group, game_state):
+        if not unit_group.get('composition'):
+            return unit_group
+
+        new_composition = {}
+        for k, v in unit_group['composition'].items():
+            unit = CBRAlgorithm.get_attacking_unit(k, v, game_state)
+            new_composition[unit] = v
+        return {'composition': new_composition}
+
+    @staticmethod
+    def get_attacking_unit(unit_id, number, game_state):
+        attacking_unit_id = unit_id
+        # Let's not send SCVs to the war, they are better off working
+        if unit_id == UnitTypeIds.SCV.value:
+            attacking_unit_id = UnitTypeIds.MARINE.value
+        # It ain't going anywhere without micro
+        elif unit_id == UnitTypeIds.SIEGETANKSIEGED.value:
+            attacking_unit_id = UnitTypeIds.SIEGETANK.value
+
+        # Need build + ability to get one
+        elif unit_id == UnitTypeIds.VIKINGASSAULT.value:
+            if len(game_state.player_units.filter(unit_type=UnitTypeIds.VIKINGASSAULT.value)) < number:
+                attacking_unit_id = UnitTypeIds.VIKINGFIGHTER.value
+        # Need build + ability to get one
+        elif unit_id == UnitTypeIds.HELLIONTANK.value:
+            if len(game_state.player_units.filter(unit_type=UnitTypeIds.HELLIONTANK.value)) < number:
+                attacking_unit_id = UnitTypeIds.HELLION.value
+        # Need build + ability to get one
+        elif unit_id == UnitTypeIds.LIBERATORAG.value:
+            if len(game_state.player_units.filter(unit_type=UnitTypeIds.LIBERATORAG.value)) < number:
+                attacking_unit_id = UnitTypeIds.LIBERATOR.value
+        return attacking_unit_id
