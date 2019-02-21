@@ -452,8 +452,8 @@ def obs_to_case(obs, game_info):
                     "type": unit.get("unitType",0),
                     "alliance": unit["alliance"],
                     "position": {
-                        "x": situation_case_to_cluster_x(unit["pos"]["x"]),
-                        "y": situation_case_to_cluster_y(unit["pos"]["y"]),
+                        "x": situation_case_to_cluster_x(game_info, unit["pos"]["x"], 4),
+                        "y": situation_case_to_cluster_y(game_info, unit["pos"]["y"], 5),
                     },
                 }
             )
@@ -497,8 +497,8 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     if action["abilityId"] == 1:
                         continue
                     resumed_action["targetPoint"] = {
-                        "x" : situation_case_to_cluster_x(action["targetWorldSpacePos"]["x"]),
-                        "y" : situation_case_to_cluster_y(action["targetWorldSpacePos"]["y"]),
+                        "x" : situation_case_to_cluster_x(game_info, action["targetWorldSpacePos"]["x"], 4),
+                        "y" : situation_case_to_cluster_y(game_info, action["targetWorldSpacePos"]["y"], 5),
                     }
                 elif "targetUnitTag" in action.keys():
                     targetUnit = units_by_tag.get(action["targetUnitTag"],None)
@@ -531,7 +531,7 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
     }
 
 
-def units_by_tag(obs):
+def units_by_tag(obs, game_info):
     by_tag = {}
     units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -541,8 +541,8 @@ def units_by_tag(obs):
                 "alliance": unit["alliance"],
                 "position":
                 {
-                    "x": situation_case_to_cluster_x(unit["pos"]["x"]),
-                    "y": situation_case_to_cluster_y(unit["pos"]["y"]),
+                    "x": situation_case_to_cluster_x(game_info, unit["pos"]["x"], 4),
+                    "y": situation_case_to_cluster_y(game_info, unit["pos"]["y"], 5),
                 }
             }
     return by_tag
