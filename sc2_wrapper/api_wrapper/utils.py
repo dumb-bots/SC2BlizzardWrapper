@@ -425,6 +425,7 @@ def group_resources(game_state):
     return clusters
 
 def situation_case_to_cluster_x(game_info, x,nx):
+    print(game_info)
     MAP_X = game_info["mapSize"]["x"]
     PLAYABLE_X1 = game_info["playableArea"]["p0"]["x"]
     PLAYABLE_X2 = game_info["playableArea"]["p1"]["x"]
