@@ -13,9 +13,6 @@ from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
 import math
 
-QUADRANT_WIDTH = 33.5
-QUADRANT_HEIGHT = 35.5
-
 
 HARVESTING_ORDERS = [
     # SCV
@@ -548,12 +545,31 @@ def units_by_tag(obs, game_info):
     return by_tag
 
 
-def get_quadrant_center(x, y):
-    return (
-        x * QUADRANT_WIDTH + QUADRANT_WIDTH / 2.,
-        y * QUADRANT_HEIGHT + QUADRANT_HEIGHT / 2.,
-    )
+def get_quadrant_position(unit, game_state):
+    x = unit.pos.x
+    y = unit.pos.y
+
+    playable_area = game_state.game_info.start_raw.playable_area
+    terrain_height = game_state.game_info.start_raw.terrain_height
+    game_info = {
+        'playableArea': {
+            "p0": {"x": playable_area.p0.x, "y": playable_area.p0.y},
+            "p1": {"x": playable_area.p1.x, "y": playable_area.p1.y},
+        },
+        'terrainHeight': {
+            "bits_per_pixel": terrain_height.bits_per_pixel,
+            "size": {"x": terrain_height.size.x, "y": terrain_height.size.y},
+            "data": terrain_height.data,
+        }
+    }
+
+    qx = situation_case_to_cluster_x(game_info, x, 4)
+    qy = situation_case_to_cluster_y(game_info, y, 5)
+    return qx, qy
 
 
-def get_unit_quadrant(unit):
-    return math.floor(unit.pos.x / QUADRANT_WIDTH), math.floor(unit.pos.y / QUADRANT_HEIGHT)
+def get_quadrant_min_side(game_state):
+    playable_area = game_state.game_info.start_raw.playable_area
+    x_side = (playable_area.p1.x - playable_area.p0.x) / 4.
+    y_side = (playable_area.p1.y - playable_area.p0.y) / 5.
+    return min(x_side, y_side)

@@ -1,5 +1,5 @@
 import random
-from api_wrapper.utils import obs_to_case, QUADRANT_WIDTH, get_unit_quadrant, get_quadrant_center
+from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -34,6 +34,9 @@ class CBRAlgorithm(RulesPlayer):
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
         end = time.time()
         print(end-start)
+        if (game_state.game_loop > 40000):
+            await self.leave_game()
+
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
@@ -101,7 +104,12 @@ class CBRAlgorithm(RulesPlayer):
 
         # New format
         if situation.get('food') is not None:
-            distance += abs(situation["food"] - case["observation"]["food"]) * 100
+            if case['observation'].get('food') is not None:
+                distance += abs(situation["food"] - case["observation"]["food"]) * 100
+            else:
+                distance += abs(
+                    situation["food"] - (case["observation"]["foodCap"] - case["observation"]["foodUsed"])
+                ) * 100
         elif situation.get('foodCap') is not None:
             distance += abs(situation["foodCap"] - case["observation"]["foodCap"]) * 100
             distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"]) * 100
@@ -270,9 +278,8 @@ class CBRAlgorithm(RulesPlayer):
             game_state.enemy_units.add_calculated_values(distance_to={"pos": target_point}),
             key=lambda unit: unit.last_distance_to,
         )
-        if closest_enemy.last_distance_to > QUADRANT_WIDTH:
-            qx, qy = get_unit_quadrant(closest_enemy)
-            redefined_target_point = get_quadrant_center(qx, qy)
+        if closest_enemy.last_distance_to > get_quadrant_min_side(game_state):
+            redefined_target_point = get_quadrant_position(closest_enemy, game_state)
             return redefined_target_point
         return target_point
 
