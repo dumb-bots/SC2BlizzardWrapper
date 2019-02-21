@@ -67,8 +67,11 @@ class UnitsRule(Rule):
         return unit_set.filter(**self.condition_parameters['query_params'])
 
     def _update_action_params(self, action, game_state):
-        if action.target_unit:
-            action.target_unit['ids'] = self.match_query_output(game_state)
+        try:
+            if action.target_unit:
+                action.target_unit['ids'] = self.match_query_output(game_state)
+        except AttributeError:
+            pass
         return action
 
 
@@ -239,6 +242,9 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(15)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value)] + \
                        [Expansion()] + \
+                       [Expansion()] + \
+                       [Expansion()] + \
+                       [Expansion()] + \
                        [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
                        [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
 
@@ -268,7 +274,7 @@ DEMO_RULES_2 = [
             "query_params": {"unit_type": UnitTypeIds.COMMANDCENTER.value, "build_progress": 1},
             "evaluation": lambda units: len(units) > 1,
         },
-        [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)] + \
+        [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + \
         [Build(UnitTypeIds.REFINERY.value) for _ in range(2)],
         burner=True,
     ),

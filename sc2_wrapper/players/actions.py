@@ -6,7 +6,7 @@ from api_wrapper.utils import get_available_building_unit, find_placement, selec
     get_available_builders, \
     select_related_minerals, select_related_refineries, get_available_upgrade_buildings, get_upgrading_building, \
     return_current_unit_dependencies, return_current_ability_dependencies, return_upgrade_building_requirements, \
-    return_missing_parent_upgrades, group_resources, ADDON_BUILDINGS
+    return_missing_parent_upgrades, group_resources, ADDON_BUILDINGS, get_ongoing_build_orders
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -398,15 +398,15 @@ class Expansion(Build):
 
     async def find_building_placement(self, ability_id, game_state, target_unit, ws):
         point = self._get_point(game_state)
-        occupied_points = self._get_occupied_points(game_state)
+        existing_ths_positions = self._get_existing_ths_positions(game_state)
         clusters = filter(
-            lambda c: min([euclidean_distance(c.center, p) for p in occupied_points]) > 9,
+            lambda c: not any(map(lambda thpos: c.point_in_cluster(thpos, game_state), existing_ths_positions)),
             group_resources(game_state)
         )
         closest_cluster = min(clusters, key=lambda cluster: euclidean_distance(point, cluster.center))
         return closest_cluster.building_point(), target_unit
 
-    def _get_occupied_points(self, game_state):
+    def _get_existing_ths_positions(self, game_state):
         # For terran v terran
         unit_filter = {"unit_type__in": [
             UnitTypeIds.COMMANDCENTER.value,
@@ -415,7 +415,10 @@ class Expansion(Build):
         ]}
         player_positions = game_state.player_units.filter(**unit_filter).values('pos', flat_list=True)
         enemy_positions = game_state.enemy_units.filter(**unit_filter).values('pos', flat_list=True)
-        return [(pos.x, pos.y) for pos in player_positions + enemy_positions]
+        built_ths = [(pos.x, pos.y) for pos in player_positions + enemy_positions]
+        th_built_orders = get_ongoing_build_orders(UnitTypeIds.COMMANDCENTER.value, game_state)
+        orders_positions = [(o.target_world_space_pos.x, o.target_world_space_pos.y) for o in th_built_orders]
+        return built_ths + orders_positions
 
     def _get_point(self, game_state):
         point = self.placement
@@ -426,8 +429,10 @@ class Expansion(Build):
                 UnitTypeIds.PLANETARYFORTRESS.value
             ])
             if not units:
-                units = game_state.player_units
-            point = (units[0].pos.x, units[0].pos.y)
+                units = game_state.player_units.filter(movement_speed=0)
+            unit_mean_x = sum([unit.pos.x for unit in units]) / float(len(units))
+            unit_mean_y = sum([unit.pos.y for unit in units]) / float(len(units))
+            point = (unit_mean_x, unit_mean_y)
         return point
 
 

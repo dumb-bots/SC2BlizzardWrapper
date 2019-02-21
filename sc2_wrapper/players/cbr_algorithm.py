@@ -213,8 +213,8 @@ class CBRAlgorithm(RulesPlayer):
 
         # Check Unit Actions
         if action_id in [AbilityId.ATTACK_ATTACK.value, AbilityId.ATTACK.value]:
-            unit_group = self.redefine_unit_group(unit_group, game_state)
-            target_point = self.redefine_target_point(target_point, game_state)
+            unit_group = self.redefine_attacking_unit_group(unit_group, game_state)
+            target_point = self.redefine_attack_target_point(target_point, game_state)
             return actions.Attack(unit_group, target_point, target_unit)
         else:
             return actions.UnitAction(action_id, unit_group, target_point, target_unit)
@@ -270,7 +270,7 @@ class CBRAlgorithm(RulesPlayer):
             return None
 
     @staticmethod
-    def redefine_target_point(target_point, game_state):
+    def redefine_attack_target_point(target_point, game_state):
         if target_point is None:
             return target_point
 
@@ -284,7 +284,7 @@ class CBRAlgorithm(RulesPlayer):
         return target_point
 
     @staticmethod
-    def redefine_unit_group(unit_group, game_state):
+    def redefine_attacking_unit_group(unit_group, game_state):
         if not unit_group.get('composition'):
             return unit_group
 

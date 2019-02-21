@@ -7,12 +7,14 @@ import s2clientprotocol.query_pb2 as api_query
 
 from constants.ability_dependencies import ABILITY_DEPENDENCIES
 from constants.ability_ids import AbilityId
+from constants.unit_data import UNIT_DATA
 from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
 import math
 
+from game_data.utils import euclidean_distance
 
 HARVESTING_ORDERS = [
     # SCV
@@ -355,6 +357,12 @@ class ResourceCluster:
         in_height = unit_height == self.height
         return in_range and in_height
 
+    def point_in_cluster(self, point, game_state):
+        unit_height = game_state.terrain_height(point)
+        in_range = euclidean_distance(point, self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
     def add_mineral_field(self, mineral_field):
         self._mineral_fields.append(mineral_field)
 
@@ -573,3 +581,13 @@ def get_quadrant_min_side(game_state):
     x_side = (playable_area.p1.x - playable_area.p0.x) / 4.
     y_side = (playable_area.p1.y - playable_area.p0.y) / 5.
     return min(x_side, y_side)
+
+
+def get_ongoing_build_orders(unit_id, game_state):
+    ability_id = UNIT_DATA.get(unit_id, {}).get('ability_id')
+    if not ability_id:
+        return []
+
+    orders = itertools.chain(*game_state.player_units.filter(unit_type=UnitTypeIds.SCV.value).values(
+        'orders', flat_list=True))
+    return list(filter(lambda o: o.ability_id == ability_id, orders))
