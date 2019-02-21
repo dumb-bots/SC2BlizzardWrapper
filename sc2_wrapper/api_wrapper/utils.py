@@ -10,7 +10,7 @@ from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
-
+import math
 
 HARVESTING_ORDERS = [
     # SCV
@@ -419,12 +419,25 @@ def group_resources(game_state):
             clusters.append(ResourceCluster(resource, game_state))
     return clusters
 
+def situation_case_to_cluster_x(game_info, x,nx):
+    MAP_X = game_info["mapSize"]["x"]
+    PLAYABLE_X1 = game_info["playableArea"]["p0"]["x"]
+    PLAYABLE_X2 = game_info["playableArea"]["p1"]["x"]
+    X_RESOLUTION = abs(PLAYABLE_X2 - PLAYABLE_X1) / float(nx)
+    new_x = math.floor((x - PLAYABLE_X1) / X_RESOLUTION)
+    cx = PLAYABLE_X1 + (new_x * X_RESOLUTION) + (X_RESOLUTION / float(2))
+    return cx
+
+def situation_case_to_cluster_y(game_info, y,ny):
+    MAP_Y = game_info["mapSize"]["y"]
+    PLAYABLE_Y1 = game_info["playableArea"]["p0"]["y"]
+    PLAYABLE_Y2 = game_info["playableArea"]["p1"]["y"]
+    Y_RESOLUTION = abs(PLAYABLE_Y2 - PLAYABLE_Y1) / float(ny)
+    new_y = math.floor((y - PLAYABLE_Y1) / Y_RESOLUTION)
+    cy = PLAYABLE_Y1 + (new_y * Y_RESOLUTION) + (Y_RESOLUTION / float(2))
+    return cy
 
 def obs_to_case(obs, game_info):
-    MAP_X = 134
-    MAP_Y = 142
-    X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 5)
     resumed_units = []
     units = obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -434,8 +447,8 @@ def obs_to_case(obs, game_info):
                     "type": unit.get("unitType",0),
                     "alliance": unit["alliance"],
                     "position": {
-                        "x": round(unit["pos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
-                        "y": round(unit["pos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
+                        "x": situation_case_to_cluster_x(unit["pos"]["x"]),
+                        "y": situation_case_to_cluster_y(unit["pos"]["y"]),
                     },
                 }
             )
@@ -458,12 +471,7 @@ def obs_to_case(obs, game_info):
     observation["startingPoints"] = game_info["startLocations"]
     return observation
 
-
 def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
-    MAP_X = 134
-    MAP_Y = 142
-    X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 5)
     actions = obs.get("observation",{}).get("actions", [])
     obs = obs_to_case(obs, game_info)
     resumed_actions = []
@@ -484,8 +492,8 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
                     if action["abilityId"] == 1:
                         continue
                     resumed_action["targetPoint"] = {
-                        "x" : round(action["targetWorldSpacePos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
-                        "y" : round(action["targetWorldSpacePos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
+                        "x" : situation_case_to_cluster_x(action["targetWorldSpacePos"]["x"]),
+                        "y" : situation_case_to_cluster_y(action["targetWorldSpacePos"]["y"]),
                     }
                 elif "targetUnitTag" in action.keys():
                     targetUnit = units_by_tag.get(action["targetUnitTag"],None)
@@ -519,10 +527,6 @@ def obs_to_case_replay(obs, replay_info, game_info, units_by_tag):
 
 
 def units_by_tag(obs):
-    MAP_X = 134
-    MAP_Y = 142
-    X_RESOLUTION = float(MAP_X / 4)
-    Y_RESOLUTION = float(MAP_Y / 5)
     by_tag = {}
     units =  obs.get("observation", {}).get("observation",{}).get("rawData", {}).get("units", [])
     for unit in units:
@@ -532,8 +536,8 @@ def units_by_tag(obs):
                 "alliance": unit["alliance"],
                 "position":
                 {
-                    "x": round(unit["pos"]["x"] / X_RESOLUTION) * X_RESOLUTION + (X_RESOLUTION / float(2)),
-                    "y": round(unit["pos"]["y"] / Y_RESOLUTION) * Y_RESOLUTION + (Y_RESOLUTION / float(2)),
+                    "x": situation_case_to_cluster_x(unit["pos"]["x"]),
+                    "y": situation_case_to_cluster_y(unit["pos"]["y"]),
                 }
             }
     return by_tag
