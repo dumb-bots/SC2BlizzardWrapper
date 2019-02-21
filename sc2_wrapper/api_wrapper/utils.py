@@ -428,9 +428,6 @@ def situation_case_to_cluster_x(game_info, x,nx):
     MAP_X = game_info["terrainHeight"]["size"]["x"]
     PLAYABLE_X1 = game_info["playableArea"]["p0"]["x"]
     PLAYABLE_X2 = game_info["playableArea"]["p1"]["x"]
-    print(MAP_X)
-    print(PLAYABLE_X1)
-    print(PLAYABLE_X2)
     X_RESOLUTION = abs(PLAYABLE_X2 - PLAYABLE_X1) / float(nx)
     new_x = math.floor((x - PLAYABLE_X1) / X_RESOLUTION)
     cx = PLAYABLE_X1 + (new_x * X_RESOLUTION) + (X_RESOLUTION / float(2))
@@ -440,9 +437,6 @@ def situation_case_to_cluster_y(game_info, y,ny):
     MAP_Y = game_info["terrainHeight"]["size"]["y"]
     PLAYABLE_Y1 = game_info["playableArea"]["p0"]["y"]
     PLAYABLE_Y2 = game_info["playableArea"]["p1"]["y"]
-    print(MAP_Y)
-    print(PLAYABLE_Y1)
-    print(PLAYABLE_Y2)
     Y_RESOLUTION = abs(PLAYABLE_Y2 - PLAYABLE_Y1) / float(ny)
     new_y = math.floor((y - PLAYABLE_Y1) / Y_RESOLUTION)
     cy = PLAYABLE_Y1 + (new_y * Y_RESOLUTION) + (Y_RESOLUTION / float(2))
