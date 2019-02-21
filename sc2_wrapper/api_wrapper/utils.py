@@ -326,15 +326,32 @@ def get_closing_enemies(game_state):
     return dangerous_units.values('tag', flat_list=True)
 
 
-class ResourceCluster:
+class UnitInfluenceArea:
     DISTANCE_THRESHOLD = 16
 
+    def __init__(self, unit, game_state):
+        self.center = (unit.pos.x, unit.pos.y)
+        self.height = game_state.terrain_height(self.center)
+        self.unit_center = unit
+
+    def unit_in_influence_area(self, resource_unit, game_state):
+        unit_height = game_state.terrain_height((resource_unit.pos.x, resource_unit.pos.y))
+        in_range = resource_unit.distance_to(pos=self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
+    def point_in_influence_area(self, point, game_state):
+        unit_height = game_state.terrain_height(point)
+        in_range = euclidean_distance(point, self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
+
+class ResourceCluster(UnitInfluenceArea):
     def __init__(self, initial_resource, game_state):
+        super().__init__(initial_resource, game_state)
         self._geysers = []
         self._mineral_fields = []
-        self.center = (initial_resource.pos.x, initial_resource.pos.y)
-        self.height = game_state.terrain_height(self.center)
-        self.add_unit(initial_resource)
 
     def __repr__(self):
         return '<Cluster {} {}: {}m {}g>'.format(
@@ -352,16 +369,10 @@ class ResourceCluster:
         return UnitManager(self._geysers)
 
     def unit_in_cluster(self, resource_unit, game_state):
-        unit_height = game_state.terrain_height((resource_unit.pos.x, resource_unit.pos.y))
-        in_range = resource_unit.distance_to(pos=self.center) < ResourceCluster.DISTANCE_THRESHOLD
-        in_height = unit_height == self.height
-        return in_range and in_height
+        return self.unit_in_influence_area(resource_unit, game_state)
 
     def point_in_cluster(self, point, game_state):
-        unit_height = game_state.terrain_height(point)
-        in_range = euclidean_distance(point, self.center) < ResourceCluster.DISTANCE_THRESHOLD
-        in_height = unit_height == self.height
-        return in_range and in_height
+        return self.point_in_influence_area(point, game_state)
 
     def add_mineral_field(self, mineral_field):
         self._mineral_fields.append(mineral_field)

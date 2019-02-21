@@ -1,5 +1,5 @@
 import random
-from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side
+from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side, UnitInfluenceArea
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -204,6 +204,7 @@ class CBRAlgorithm(RulesPlayer):
             elif built_unit == UnitTypeIds.COMMANDCENTER.value:
                 return actions.Expansion(target_point)
             else:
+                target_point = self.process_build_target_point(target_point, game_state)
                 return actions.Build(built_unit, target_point)
 
         # Check upgrades
@@ -317,3 +318,21 @@ class CBRAlgorithm(RulesPlayer):
             if len(game_state.player_units.filter(unit_type=UnitTypeIds.LIBERATORAG.value)) < number:
                 attacking_unit_id = UnitTypeIds.LIBERATOR.value
         return attacking_unit_id
+
+    @staticmethod
+    def process_build_target_point(target_point, game_state):
+        if target_point is None:
+            return target_point
+
+        town_halls = game_state.player_units.filter(unit_type__in=[
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.PLANETARYFORTRESS.value,
+            UnitTypeIds.ORBITALCOMMAND.value,
+        ])
+        town_hall_influence_areas = map(lambda th: UnitInfluenceArea(th, game_state), town_halls)
+        if not any(map(
+                lambda i_area: i_area.point_in_influence_area(target_point, game_state),
+                town_hall_influence_areas
+        )):
+            target_point = None
+        return target_point

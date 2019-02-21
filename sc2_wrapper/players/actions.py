@@ -325,7 +325,7 @@ class Build(BuildingAction):
         return 0
 
     def determine_action_state(self, game_state, units_queue, upgrades_queue):
-        building_stuck = len(game_state.player_units.filter(name__in=["SCV", "CommandCenter"])) == 0
+        building_stuck = len(game_state.player_units.filter(unit_type__in=[45, 18, 130, 132])) == 0
         if building_stuck:
             return Action.MISSING_DEPENDENCIES, []
         else:
@@ -395,6 +395,9 @@ class Expansion(Build):
         # TODO: Check race
         unit_id = UnitTypeIds.COMMANDCENTER.value
         super().__init__(unit_id, point)
+
+    def determine_action_state(self, game_state, units_queue, upgrades_queue):
+        return super(Expansion, self).determine_action_state(game_state, units_queue, upgrades_queue)
 
     async def find_building_placement(self, ability_id, game_state, target_unit, ws):
         point = self._get_point(game_state)
@@ -549,12 +552,17 @@ class UnitAction(Action):
                 base_manager = base_manager.add_calculated_values(distance_to=distance_args)
 
         elif composition:
-            for unit_type, amount in composition.items():
-                units = game_state.player_units.filter(unit_type=unit_type)
-                if distance_args:
-                    units = units.add_calculated_values(distance_to=distance_args)
-                base_manager += units[:amount]
+            base_manager = self.prepare_unit_composition(composition, distance_args, game_state)
 
+        return base_manager
+
+    def prepare_unit_composition(self, composition, distance_args, game_state):
+        base_manager = UnitManager([])
+        for unit_type, amount in composition.items():
+            units = game_state.player_units.filter(unit_type=unit_type)
+            if distance_args:
+                units = units.add_calculated_values(distance_to=distance_args)
+            base_manager += units[:amount]
         return base_manager
 
     def return_units_required(self, game_state, existing_units):
