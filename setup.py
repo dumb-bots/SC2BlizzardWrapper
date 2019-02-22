@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="SC2ApiWrapper",
-    version="0.16.1",
+    version="2.0.1",
     description="Simple wrapper for sc2api-proto in python",
     url="https://github.com/MMandirola/SC2BlizzardWrapper",
     author="Felipe Lopez, Marcelo Mandirola, Marcelo Siccardi",
