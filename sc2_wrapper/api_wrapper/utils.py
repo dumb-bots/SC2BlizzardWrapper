@@ -633,4 +633,4 @@ def get_situation_minerals(situation, game_data):
 
 
 def own_minerals_distance(case, situation, game_data):
-    return abs(get_situation_minerals(case, game_data) - get_situation_minerals(situation['observation'], game_data))
+    return abs(get_situation_minerals(case, game_data) - get_situation_minerals(situation, game_data))
