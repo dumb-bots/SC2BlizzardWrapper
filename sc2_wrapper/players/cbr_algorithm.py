@@ -1,5 +1,5 @@
 import random
-from api_wrapper.utils import obs_to_case, QUADRANT_WIDTH, get_unit_quadrant, get_quadrant_center
+from api_wrapper.utils import obs_to_case, QUADRANT_WIDTH, get_unit_quadrant, get_quadrant_center, own_minerals_distance
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -54,7 +54,7 @@ class CBRAlgorithm(RulesPlayer):
             if not look_cases:
                 return actions
             for case in look_cases:
-                case_evaluation = self.evaluate_case(situation, case)  # I take the first case and evaluate it
+                case_evaluation = self.evaluate_case(situation, case, raw[2])  # I take the first case and evaluate it
                 probabilities_per_case.append([case, case_evaluation])
             items = probabilities_per_case
             items = sorted(items, key=lambda x: x[1])
@@ -81,10 +81,9 @@ class CBRAlgorithm(RulesPlayer):
                     list_of_actions = []
                     selected_actions = []
                     for action in actions:
-                        list_of_actions.append([action, self.evaluate_action(action)])
+                        list_of_actions.append([action, self.evaluate_action(action) * action["games"] / float(selected_case["games"])])
                     maximum_fitness = max(map(lambda x: x[1], list_of_actions))
-                    list_of_actions = list(map(lambda x: [x[0], x[1] / maximum_fitness * x[0]["games"] / selected_case["games"]], list_of_actions))
-                    print(list_of_actions)
+                    list_of_actions = list(map(lambda x: [x[0], x[1] / maximum_fitness, list_of_actions))
                     for action in list_of_actions:
                         rnd = random.uniform(0,1)
                         if rnd <= action[1]:
@@ -147,11 +146,11 @@ class CBRAlgorithm(RulesPlayer):
         return distance
     
     #Returns the case evaluation
-    def evaluate_case(self, situation, case):
+    def evaluate_case(self, situation, case, game_data=None):
         won = case["wins"]
         count = case["games"]
         lost = case["looses"]
-        distance = self.get_distance(situation, case)
+        distance = own_minerals_distance(situation, case, game_data)
         #distance = 0
         case_eval = (count / (count + 10)) * ((count) / (count + lost)) * (1 / (1 + distance))
         # case_eval = 1 / (1 + distance)

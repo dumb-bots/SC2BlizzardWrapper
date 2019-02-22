@@ -148,7 +148,7 @@ class Player:
                 game_meta.update(game_meta["startRaw"])
                 game_meta.pop("startRaw")
                 game_meta.pop("mapSize")
-                await self.process_step(ws, obj, raw=(obs, game_meta))
+                await self.process_step(ws, obj, raw=(obs, game_meta, game_data))
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()
                 # to_do_action = function(observation, alvailable_actions)

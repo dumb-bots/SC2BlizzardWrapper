@@ -12,10 +12,12 @@ from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
 import math
-
+from constants.upgrade_data import UPGRADE_DATA
+from constants.unit_data import UNIT_DATA
 QUADRANT_WIDTH = 33.5
 QUADRANT_HEIGHT = 35.5
-
+VESPENE_TO_MINERALS = 3.45
+SUPPLY_TO_MINERALS = 12.5
 
 HARVESTING_ORDERS = [
     # SCV
@@ -557,3 +559,21 @@ def get_quadrant_center(x, y):
 
 def get_unit_quadrant(unit):
     return math.floor(unit.pos.x / QUADRANT_WIDTH), math.floor(unit.pos.y / QUADRANT_HEIGHT)
+
+def get_situation_minerals(situation, game_data):
+    minerals = situation["minerals"] * 100
+    minerals += situation["vespene"] * VESPENE_TO_MINERALS * 100
+    minerals += situation["food"] * SUPPLY_TO_MINERALS
+    for upgrade in situation["upgrades"]:
+        minerals += UPGRADE_DATA[upgrade]["mineral_cost"]
+        minerals += UPGRADE_DATA[upgrade]["vespene_cost"] * VESPENE_TO_MINERALS
+    for unit in situation["units"]:
+        for unit_data in game_data.units:
+            if unit["alliance"] == "Self" and unit["type"] == unit_data.unit_id:
+                minerals += unit_data.mineral_cost
+                minerals += unit_data.vespene_cost * VESPENE_TO_MINERALS
+                minerals += unit_data.food_required * SUPPLY_TO_MINERALS    
+    return minerals
+
+def own_minerals_distance(case, situation, game_data):
+    return abs(get_situation_minerals(case, game_data), get_situation_minerals(situation, game_data))
