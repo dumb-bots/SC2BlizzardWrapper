@@ -158,7 +158,7 @@ class CBRAlgorithm(RulesPlayer):
         won = case["wins"]
         count = case["games"]
         lost = case["looses"]
-        distance = own_minerals_distance(situation, case, game_data)
+        distance = own_minerals_distance(situation, case["observation"], game_data)
         #distance = 0
         case_eval = (count / (count + 10)) * ((count) / (count + lost)) * (1 / (1 + distance))
         # case_eval = 1 / (1 + distance)
