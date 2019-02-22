@@ -1,5 +1,5 @@
 import random
-from api_wrapper.utils import obs_to_case, QUADRANT_WIDTH, get_unit_quadrant, get_quadrant_center, own_minerals_distance
+from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side, UnitInfluenceArea, own_minerals_distance
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -34,6 +34,9 @@ class CBRAlgorithm(RulesPlayer):
         await super(CBRAlgorithm, self).process_step(ws, game_state, raw, actions)
         end = time.time()
         print(end-start)
+        if (game_state.game_loop > 40000):
+            await self.leave_game()
+
 
     async def determine_actions(self, raw):
         situation = obs_to_case(raw[0], raw[1])
@@ -100,7 +103,12 @@ class CBRAlgorithm(RulesPlayer):
 
         # New format
         if situation.get('food') is not None:
-            distance += abs(situation["food"] - case["observation"]["food"]) * 100
+            if case['observation'].get('food') is not None:
+                distance += abs(situation["food"] - case["observation"]["food"]) * 100
+            else:
+                distance += abs(
+                    situation["food"] - (case["observation"]["foodCap"] - case["observation"]["foodUsed"])
+                ) * 100
         elif situation.get('foodCap') is not None:
             distance += abs(situation["foodCap"] - case["observation"]["foodCap"]) * 100
             distance += abs(situation["foodUsed"] - case["observation"]["foodUsed"]) * 100
@@ -195,6 +203,7 @@ class CBRAlgorithm(RulesPlayer):
             elif built_unit == UnitTypeIds.COMMANDCENTER.value:
                 return actions.Expansion(target_point)
             else:
+                target_point = self.process_build_target_point(target_point, game_state)
                 return actions.Build(built_unit, target_point)
 
         # Check upgrades
@@ -204,8 +213,8 @@ class CBRAlgorithm(RulesPlayer):
 
         # Check Unit Actions
         if action_id in [AbilityId.ATTACK_ATTACK.value, AbilityId.ATTACK.value]:
-            unit_group = self.redefine_unit_group(unit_group, game_state)
-            target_point = self.redefine_target_point(target_point, game_state)
+            unit_group = self.redefine_attacking_unit_group(unit_group, game_state)
+            target_point = self.redefine_attack_target_point(target_point, game_state)
             return actions.Attack(unit_group, target_point, target_unit)
         else:
             return actions.UnitAction(action_id, unit_group, target_point, target_unit)
@@ -261,7 +270,7 @@ class CBRAlgorithm(RulesPlayer):
             return None
 
     @staticmethod
-    def redefine_target_point(target_point, game_state):
+    def redefine_attack_target_point(target_point, game_state):
         if target_point is None:
             return target_point
 
@@ -269,14 +278,13 @@ class CBRAlgorithm(RulesPlayer):
             game_state.enemy_units.add_calculated_values(distance_to={"pos": target_point}),
             key=lambda unit: unit.last_distance_to,
         )
-        if closest_enemy.last_distance_to > QUADRANT_WIDTH:
-            qx, qy = get_unit_quadrant(closest_enemy)
-            redefined_target_point = get_quadrant_center(qx, qy)
+        if closest_enemy.last_distance_to > get_quadrant_min_side(game_state):
+            redefined_target_point = get_quadrant_position(closest_enemy, game_state)
             return redefined_target_point
         return target_point
 
     @staticmethod
-    def redefine_unit_group(unit_group, game_state):
+    def redefine_attacking_unit_group(unit_group, game_state):
         if not unit_group.get('composition'):
             return unit_group
 
@@ -309,3 +317,21 @@ class CBRAlgorithm(RulesPlayer):
             if len(game_state.player_units.filter(unit_type=UnitTypeIds.LIBERATORAG.value)) < number:
                 attacking_unit_id = UnitTypeIds.LIBERATOR.value
         return attacking_unit_id
+
+    @staticmethod
+    def process_build_target_point(target_point, game_state):
+        if target_point is None:
+            return target_point
+
+        town_halls = game_state.player_units.filter(unit_type__in=[
+            UnitTypeIds.COMMANDCENTER.value,
+            UnitTypeIds.PLANETARYFORTRESS.value,
+            UnitTypeIds.ORBITALCOMMAND.value,
+        ])
+        town_hall_influence_areas = map(lambda th: UnitInfluenceArea(th, game_state), town_halls)
+        if not any(map(
+                lambda i_area: i_area.point_in_influence_area(target_point, game_state),
+                town_hall_influence_areas
+        )):
+            target_point = None
+        return target_point

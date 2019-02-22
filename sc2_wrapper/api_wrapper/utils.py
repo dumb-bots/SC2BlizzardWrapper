@@ -7,17 +7,23 @@ import s2clientprotocol.query_pb2 as api_query
 
 from constants.ability_dependencies import ABILITY_DEPENDENCIES
 from constants.ability_ids import AbilityId
+from constants.unit_data import UNIT_DATA
 from constants.unit_dependencies import UNIT_DEPENDENCIES
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
 import math
+<<<<<<< HEAD
 from constants.upgrade_data import UPGRADE_DATA
 from constants.unit_data import UNIT_DATA
 QUADRANT_WIDTH = 33.5
 QUADRANT_HEIGHT = 35.5
 VESPENE_TO_MINERALS = 3.45
 SUPPLY_TO_MINERALS = 12.5
+=======
+
+from game_data.utils import euclidean_distance
+>>>>>>> 38c15607b368337cdd177ff488926ffb39f9525e
 
 HARVESTING_ORDERS = [
     # SCV
@@ -329,15 +335,32 @@ def get_closing_enemies(game_state):
     return dangerous_units.values('tag', flat_list=True)
 
 
-class ResourceCluster:
+class UnitInfluenceArea:
     DISTANCE_THRESHOLD = 16
 
+    def __init__(self, unit, game_state):
+        self.center = (unit.pos.x, unit.pos.y)
+        self.height = game_state.terrain_height(self.center)
+        self.unit_center = unit
+
+    def unit_in_influence_area(self, resource_unit, game_state):
+        unit_height = game_state.terrain_height((resource_unit.pos.x, resource_unit.pos.y))
+        in_range = resource_unit.distance_to(pos=self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
+    def point_in_influence_area(self, point, game_state):
+        unit_height = game_state.terrain_height(point)
+        in_range = euclidean_distance(point, self.center) < ResourceCluster.DISTANCE_THRESHOLD
+        in_height = unit_height == self.height
+        return in_range and in_height
+
+
+class ResourceCluster(UnitInfluenceArea):
     def __init__(self, initial_resource, game_state):
+        super().__init__(initial_resource, game_state)
         self._geysers = []
         self._mineral_fields = []
-        self.center = (initial_resource.pos.x, initial_resource.pos.y)
-        self.height = game_state.terrain_height(self.center)
-        self.add_unit(initial_resource)
 
     def __repr__(self):
         return '<Cluster {} {}: {}m {}g>'.format(
@@ -355,10 +378,10 @@ class ResourceCluster:
         return UnitManager(self._geysers)
 
     def unit_in_cluster(self, resource_unit, game_state):
-        unit_height = game_state.terrain_height((resource_unit.pos.x, resource_unit.pos.y))
-        in_range = resource_unit.distance_to(pos=self.center) < ResourceCluster.DISTANCE_THRESHOLD
-        in_height = unit_height == self.height
-        return in_range and in_height
+        return self.unit_in_influence_area(resource_unit, game_state)
+
+    def point_in_cluster(self, point, game_state):
+        return self.point_in_influence_area(point, game_state)
 
     def add_mineral_field(self, mineral_field):
         self._mineral_fields.append(mineral_field)
@@ -550,12 +573,43 @@ def units_by_tag(obs, game_info):
     return by_tag
 
 
-def get_quadrant_center(x, y):
-    return (
-        x * QUADRANT_WIDTH + QUADRANT_WIDTH / 2.,
-        y * QUADRANT_HEIGHT + QUADRANT_HEIGHT / 2.,
-    )
+def get_quadrant_position(unit, game_state):
+    x = unit.pos.x
+    y = unit.pos.y
 
+    playable_area = game_state.game_info.start_raw.playable_area
+    terrain_height = game_state.game_info.start_raw.terrain_height
+    game_info = {
+        'playableArea': {
+            "p0": {"x": playable_area.p0.x, "y": playable_area.p0.y},
+            "p1": {"x": playable_area.p1.x, "y": playable_area.p1.y},
+        },
+        'terrainHeight': {
+            "bits_per_pixel": terrain_height.bits_per_pixel,
+            "size": {"x": terrain_height.size.x, "y": terrain_height.size.y},
+            "data": terrain_height.data,
+        }
+    }
+
+    qx = situation_case_to_cluster_x(game_info, x, 4)
+    qy = situation_case_to_cluster_y(game_info, y, 5)
+    return qx, qy
+
+
+def get_quadrant_min_side(game_state):
+    playable_area = game_state.game_info.start_raw.playable_area
+    x_side = (playable_area.p1.x - playable_area.p0.x) / 4.
+    y_side = (playable_area.p1.y - playable_area.p0.y) / 5.
+    return min(x_side, y_side)
+
+
+def get_ongoing_build_orders(unit_id, game_state):
+    ability_id = UNIT_DATA.get(unit_id, {}).get('ability_id')
+    if not ability_id:
+        return []
+    orders = itertools.chain(*game_state.player_units.filter(unit_type=UnitTypeIds.SCV.value).values(
+        'orders', flat_list=True))
+    return list(filter(lambda o: o.ability_id == ability_id, orders))
 
 def get_unit_quadrant(unit):
     return math.floor(unit.pos.x / QUADRANT_WIDTH), math.floor(unit.pos.y / QUADRANT_HEIGHT)
