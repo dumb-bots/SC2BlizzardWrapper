@@ -614,6 +614,7 @@ def get_unit_quadrant(unit):
 def get_situation_minerals(situation, game_data):
     minerals = situation["minerals"] * 100
     minerals += situation["vespene"] * VESPENE_TO_MINERALS * 100
+    print(situation.keys())
     minerals += situation["food"] * SUPPLY_TO_MINERALS
     for upgrade in situation["upgrades"]:
         minerals += UPGRADE_DATA[upgrade]["mineral_cost"]
