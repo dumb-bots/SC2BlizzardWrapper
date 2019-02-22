@@ -1,7 +1,8 @@
 import asyncio
+import traceback
+from collections import namedtuple
 
 from constants.ability_ids import AbilityId
-from constants.unit_type_ids import UnitTypeIds
 from game_data.observations import decode_observation
 from game_data.action import Action
 from game_data.units import UnitManager
@@ -11,10 +12,20 @@ import websockets
 import s2clientprotocol.sc2api_pb2 as api
 import s2clientprotocol.common_pb2 as common
 import s2clientprotocol.query_pb2 as query
+from google.protobuf.json_format import MessageToDict
+import json
 
-
-class Player():
-    async def create(self, race, type, difficulty=None, server=None, server_route=None, server_address=None, **kwargs):
+class Player:
+    async def create(
+        self,
+        race,
+        type,
+        difficulty=None,
+        server=None,
+        server_route=None,
+        server_address=None,
+        **kwargs
+    ):
         self.race = race
         self.type = type
         self.difficulty = difficulty
@@ -25,9 +36,11 @@ class Player():
         self.decision_function = lambda x, y: None
         # if server:
         #     self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
-        if (not self.server) and (self.type != 'Computer'):
+        if (not self.server) and (self.type != "Computer"):
             port = portpicker.pick_unused_port()
-            self.server = await Server.get_server(server_route, server_address, str(port))
+            self.server = await Server.get_server(
+                server_route, server_address, str(port)
+            )
             # self.websocket = websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port))
 
     async def join_game(self, port_config):
@@ -41,7 +54,9 @@ class Player():
             ports.base_port = config["base_port"]
             ports.game_port = config["game_port"]
         request_payload.join_game.options.raw = True
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as websocket:
+        async with websockets.connect(
+            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+        ) as websocket:
             await websocket.send(request_payload.SerializeToString())
             response = await websocket.recv()
             response = api.Response.FromString(response)
@@ -50,7 +65,9 @@ class Player():
     async def leave_game(self):
         request_payload = api.Request(leave_game=api.RequestLeaveGame())
         self.server.status = "idle"
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as websocket:
+        async with websockets.connect(
+            "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+        ) as websocket:
             await websocket.send(request_payload.SerializeToString())
             response = await websocket.recv()
             response = api.Response.FromString(response)
@@ -74,29 +91,64 @@ class Player():
                 for ab in ability.abilities:
                     if hasattr(ab, "requires_point"):
                         action = Action(
-                            unit=unit, ability_id=ab.ability_id, require_target=True)
+                            unit=unit, ability_id=ab.ability_id, require_target=True
+                        )
                     else:
                         action = Action(unit=unit, ability_id=ab.ability_id)
                     available_actions.append(action)
         return available_actions
 
-    async def process_step(self, ws, game_state, actions=None):
+    async def process_step(self, ws, game_state, raw=None, actions=None):
         pass
 
     async def play(self, ws, observation):
         success = True
-        request_data = api.Request(data=api.RequestData(
-            ability_id=True, unit_type_id=True, upgrade_id=True))
+        request_data = api.Request(
+            data=api.RequestData(ability_id=True, unit_type_id=True, upgrade_id=True)
+        )
         await asyncio.wait_for(ws.send(request_data.SerializeToString()), 5)
         try:
             result = await asyncio.wait_for(ws.recv(), 5)
             data_response = api.Response.FromString(result)
             game_data = data_response.data
+
+            request_game_info = api.Request(game_info=api.RequestGameInfo())
+            await asyncio.wait_for(ws.send(request_game_info.SerializeToString()), 5)
+            result = await asyncio.wait_for(ws.recv(), 5)
+            game_info_response = api.Response.FromString(result)
+
             # If game is still on
             if game_data.units:
-                obj = decode_observation(
-                    observation.observation.observation, game_data)
-                await self.process_step(ws, obj)
+                obj = decode_observation(observation.observation.observation, game_data, game_info_response)
+                obs = MessageToDict(observation)
+                obs = str(obs)
+                obs = obs.replace("\'", "\"")
+                obs = obs.replace("False", "false")
+                obs = obs.replace("True", "true")
+                obs = json.loads(obs,encoding="UTF-8")
+                game_meta = api.Request(
+                    game_info=api.RequestGameInfo()
+                )
+                await ws.send(game_meta.SerializeToString())
+                result = await ws.recv()
+                game_meta = api.Response.FromString(result)
+                game_meta = MessageToDict(game_meta)
+                game_meta = str(game_meta)
+                game_meta = game_meta.replace("\'", "\"")
+                game_meta = game_meta.replace("False", "false")
+                game_meta = game_meta.replace("True", "true")
+                game_meta = json.loads(game_meta,encoding="UTF-8")
+                game_meta = game_meta.get("gameInfo", None)
+                game_meta.pop("modNames")
+                game_meta.pop("options")
+                game_meta.pop("mapName")
+                if("localMapPath" in game_meta.keys()):
+                    game_meta.pop("localMapPath")
+                game_meta.pop("playerInfo")
+                game_meta.update(game_meta["startRaw"])
+                game_meta.pop("startRaw")
+                game_meta.pop("mapSize")
+                await self.process_step(ws, obj, raw=(obs, game_meta, game_data))
                 # function = self.decision_function
                 # alvailable_actions = self.query_alvailable_actions()
                 # to_do_action = function(observation, alvailable_actions)
@@ -108,43 +160,58 @@ class Player():
         return True
 
     async def advance_time(self, step=100):
-        async with websockets.connect("ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)) as ws:
-            request_payload = api.Request()
-            request_payload.observation.disable_fog = True
-            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
-            result = await asyncio.wait_for(ws.recv(), 5)
-            observation = api.Response.FromString(result)
-            successfull = True
-            if(not self.isComputer):
-                await self.play(ws, observation)
-            request_payload = api.Request()
-            request_payload.step.count = step
-            await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
-            result = await asyncio.wait_for(ws.recv(), 5)
-            response = api.Response.FromString(result)
-            return observation
+        try:
+            async with websockets.connect(
+                "ws://{0}:{1}/sc2api".format(self.server.address, self.server.port)
+            ) as ws:
+                request_payload = api.Request()
+                request_payload.observation.disable_fog = True
+                DefaultObs = namedtuple("Observation", "status")
+                observation = DefaultObs(3)
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                observation = api.Response.FromString(result)
+                successfull = True
+                if not self.isComputer:
+                    await self.play(ws, observation)
+                request_payload = api.Request()
+                request_payload.step.count = step
+                await asyncio.wait_for(ws.send(request_payload.SerializeToString()), 5)
+                result = await asyncio.wait_for(ws.recv(), 5)
+                response = api.Response.FromString(result)
+                return observation
+        except:
+                print(traceback.print_exc())
+                print("Error during advance time, ignoring observation")
 
     # Player support tools
     def select_idle_workers(self, game_state, number=None):
         # TODO: Select according to race
         worker_id = "SCV"
 
-        idle_workers = game_state.player_units.filter(
-            name=worker_id, orders=[])
+        idle_workers = game_state.player_units.filter(name=worker_id, orders=[])
 
         # Returning workers
         harvest_return_abilities = [
-            ability.value for ability in AbilityId if ability.name.startswith("HARVEST_RETURN")]
+            ability.value
+            for ability in AbilityId
+            if ability.name.startswith("HARVEST_RETURN")
+        ]
         for ability_id in harvest_return_abilities:
             idle_workers += game_state.player_units.filter(
-                name=worker_id, orders__ability_id=ability_id)
+                name=worker_id, orders__ability_id=ability_id
+            )
 
         # Gathering workers
         harvest_return_abilities = [
-            ability.value for ability in AbilityId if ability.name.startswith("HARVEST_GATHER")]
+            ability.value
+            for ability in AbilityId
+            if ability.name.startswith("HARVEST_GATHER")
+        ]
         for ability_id in harvest_return_abilities:
             idle_workers += game_state.player_units.filter(
-                name=worker_id, orders__ability_id=ability_id)
+                name=worker_id, orders__ability_id=ability_id
+            )
 
         # Return manager with idle workers
         if number is not None:
@@ -152,16 +219,3 @@ class Player():
         else:
             return UnitManager(idle_workers)
 
-    def select_related_minerals(self, game_state, town_hall):
-        mineral_field_ids = [
-            unit_type.value for unit_type in UnitTypeIds if "MINERALFIELD" in unit_type.name]
-        neutral = game_state.neutral_units.add_calculated_values(
-            distance_to={"unit": town_hall})
-        return neutral.filter(unit_type__in=mineral_field_ids, last_distance_to__lte=10)
-
-    def select_related_gas(self, game_state, town_hall):
-        vespene_geyser_ids = [
-            unit_type.value for unit_type in UnitTypeIds if "VESPENEGEYSER" in unit_type.name]
-        neutral = game_state.neutral_units.add_calculated_values(
-            distance_to={"unit": town_hall})
-        return neutral.filter(unit_type__in=vespene_geyser_ids, last_distance_to__lte=10)

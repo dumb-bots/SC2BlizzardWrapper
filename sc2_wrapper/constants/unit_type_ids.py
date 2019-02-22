@@ -1,5 +1,6 @@
 import enum
 
+
 class UnitTypeIds(enum.Enum):
     SYSTEM_SNAPSHOT_DUMMY = 1
     BALL = 2

@@ -1,7 +1,6 @@
-import random
-from game_data.units import UnitManager
-from api_wrapper.player import Player
-from constants.ability_ids import AbilityId
+from  api_wrapper.player import Player
+
+
 class RandomPlayer(Player):
     async def process_step(self, ws, game_state, actions=None):
         pass
