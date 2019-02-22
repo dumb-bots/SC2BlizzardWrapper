@@ -608,23 +608,29 @@ def get_ongoing_build_orders(unit_id, game_state):
         'orders', flat_list=True))
     return list(filter(lambda o: o.ability_id == ability_id, orders))
 
+
 def get_unit_quadrant(unit):
     return math.floor(unit.pos.x / QUADRANT_WIDTH), math.floor(unit.pos.y / QUADRANT_HEIGHT)
+
 
 def get_situation_minerals(situation, game_data):
     minerals = situation["minerals"] * 100
     minerals += situation["vespene"] * VESPENE_TO_MINERALS * 100
-    minerals += situation["food"] * SUPPLY_TO_MINERALS
+    food = situation["food"] * SUPPLY_TO_MINERALS \
+        if situation.get('food') is not None \
+        else abs(situation['foodCap'] - situation['foodUsed'])
+    minerals += food * SUPPLY_TO_MINERALS
     for upgrade in situation["upgrades"]:
         minerals += UPGRADE_DATA[upgrade]["mineral_cost"]
         minerals += UPGRADE_DATA[upgrade]["vespene_cost"] * VESPENE_TO_MINERALS
     for unit in situation["units"]:
-        for unit_data in game_data.units:
-            if unit["alliance"] == "Self" and unit["type"] == unit_data.unit_id:
-                minerals += unit_data.mineral_cost
-                minerals += unit_data.vespene_cost * VESPENE_TO_MINERALS
-                minerals += unit_data.food_required * SUPPLY_TO_MINERALS    
+        unit_data = game_data[unit["type"]]
+        if unit["alliance"] == "Self":
+            minerals += unit_data.mineral_cost
+            minerals += unit_data.vespene_cost * VESPENE_TO_MINERALS
+            minerals += unit_data.food_required * SUPPLY_TO_MINERALS
     return minerals
 
+
 def own_minerals_distance(case, situation, game_data):
-    return abs(get_situation_minerals(case, game_data), get_situation_minerals(situation, game_data))
+    return abs(get_situation_minerals(case, game_data) - get_situation_minerals(situation['observation'], game_data))

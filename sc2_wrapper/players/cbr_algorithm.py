@@ -56,9 +56,12 @@ class CBRAlgorithm(RulesPlayer):
                 look_cases = self.cases_by_loop[keys[random.randint(0,9)]]
             if not look_cases:
                 return actions
+            unit_data = {u.unit_id: u for u in raw[2].units}
+            start = time.time()
             for case in look_cases:
-                case_evaluation = self.evaluate_case(situation, case, raw[2])  # I take the first case and evaluate it
+                case_evaluation = self.evaluate_case(situation, case, unit_data)  # I take the first case and evaluate it
                 probabilities_per_case.append([case, case_evaluation])
+            print("Distance calculation time: {}s".format(time.time() - start))
             items = probabilities_per_case
             items = sorted(items, key=lambda x: x[1])
             items = items[-100:]
@@ -86,7 +89,7 @@ class CBRAlgorithm(RulesPlayer):
                     for action in actions:
                         list_of_actions.append([action, self.evaluate_action(action) * action["games"] / float(selected_case["games"])])
                     maximum_fitness = max(map(lambda x: x[1], list_of_actions))
-                    list_of_actions = list(map(lambda x: [x[0], x[1]] / maximum_fitness, list_of_actions))
+                    list_of_actions = list(map(lambda x: [x[0], x[1] / maximum_fitness], list_of_actions))
                     for action in list_of_actions:
                         rnd = random.uniform(0,1)
                         if rnd <= action[1]:
