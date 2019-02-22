@@ -127,6 +127,14 @@ class UnitManager(list):
                 elif op == "gte":
                     unit_value = unit.get_attribute(attribute)
                     evaluation = unit_value >= value
+                    # Lower or equal than operator
+                elif op == "lt":
+                    unit_value = unit.get_attribute(attribute)
+                    evaluation = unit_value < value
+                # Greater or equal than operator
+                elif op == "gt":
+                    unit_value = unit.get_attribute(attribute)
+                    evaluation = unit_value > value
                 # Composed attribute filter
                 else:
                     unit_value = unit.get_attribute(attribute)
