@@ -1,3 +1,4 @@
+import itertools
 from functools import reduce
 
 from api_wrapper.utils import get_closing_enemies
@@ -28,7 +29,7 @@ class Rule:
     def match_query_output(self, game_state):
         return None
 
-    def next_actions(self, game_state):
+    def next_actions(self, game_state, player):
         output = self.match_query_output(game_state)
         if output is None:
             return self.actions
@@ -100,7 +101,7 @@ class TerminateIdleUnits(UnitsRule):
         )
         return no_enemy_th and self.idle_units(game_state)
 
-    def next_actions(self, game_state):
+    def next_actions(self, game_state, player):
         enemy_targets = game_state.enemy_units.filter(movement_speed=0)
         if not enemy_targets:
             enemy_targets = game_state.enemy_units
@@ -127,7 +128,7 @@ class DefendIdleUnits(TerminateIdleUnits):
     def _match(self, game_state, player):
         return self.match_query_output(game_state) and self.idle_units(game_state)
 
-    def next_actions(self, game_state):
+    def next_actions(self, game_state, player):
         return [Attack(
             {"query": {"tag__in": self.idle_units(game_state).values('tag', flat_list=True)}},
             target_unit={
@@ -145,19 +146,21 @@ class IdleWorkersHarvest(UnitsRule):
     def _match(self, game_state, player):
         return self.match_query_output(game_state)
 
-    def next_actions(self, game_state):
+    def next_actions(self, game_state, player):
         unit_group = {"query": {"tag__in": self.match_query_output(game_state).values('tag', flat_list=True)}}
         return [DistributeHarvest(unit_group)]
 
 
 class OverWorkersHarvest(UnitsRule):
+    HARVESTING_HUBS = [
+        UnitTypeIds.REFINERY.value,
+        UnitTypeIds.COMMANDCENTER.value,
+        UnitTypeIds.PLANETARYFORTRESS.value,
+        UnitTypeIds.ORBITALCOMMAND.value,
+    ]
+
     def match_query_output(self, game_state):
-        town_halls = game_state.player_units.filter(build_progress=1, unit_type__in=[
-            UnitTypeIds.REFINERY.value,
-            UnitTypeIds.COMMANDCENTER.value,
-            UnitTypeIds.PLANETARYFORTRESS.value,
-            UnitTypeIds.ORBITALCOMMAND.value,
-        ])
+        town_halls = game_state.player_units.filter(build_progress=1, unit_type__in=self.HARVESTING_HUBS)
         return UnitManager(list(filter(lambda th: th.assigned_harvesters > th.ideal_harvesters, town_halls)))
 
     def _match(self, game_state, player):
@@ -180,12 +183,87 @@ class OverWorkersHarvest(UnitsRule):
                         break
         return worker_tags
 
-    def next_actions(self, game_state):
+    def next_actions(self, game_state, player):
         spare_workers = self._get_spare_workers(game_state)
         if spare_workers:
             unit_group = {"query": {"tag__in": spare_workers}}
             return [DistributeHarvest(unit_group)]
         return []
+
+
+class TooMuchWorkersExpansion(OverWorkersHarvest):
+    def get_idle_workers(self, game_state):
+        return game_state.player_units.filter(unit_type=UnitTypeIds.SCV.value, orders__attlength=0)
+
+    def get_available_hubs(self, game_state):
+        harvesting_hubs = game_state.player_units.filter(build_progress=1, unit_type__in=self.HARVESTING_HUBS)
+        return UnitManager(list(filter(lambda hub: hub.assigned_harvesters < hub.ideal_harvesters, harvesting_hubs)))
+
+    def get_workers_to_assign(self, game_state):
+        return self._get_spare_workers(game_state) + self.get_idle_workers(game_state)
+
+    def get_number_of_workers_to_assign(self, game_state):
+        under_producing_workers = (self._get_spare_workers(game_state) + self.get_idle_workers(game_state))
+        workers_to_assign = len(under_producing_workers)
+        return workers_to_assign
+
+    def get_available_spots(self, hub):
+        harvest_diff = hub.ideal_harvesters - hub.assigned_harvesters
+        return harvest_diff if harvest_diff > 0 else 0
+
+    def get_number_of_working_spots(self, game_state):
+        return reduce(
+            lambda acc, hub: acc + self.get_available_spots(hub),
+            self.get_available_hubs(game_state),
+            0,
+        )
+
+    def _match(self, game_state, player):
+        workers_to_assign = self.get_number_of_workers_to_assign(game_state)
+        available_working_spots = self.get_number_of_working_spots(game_state)
+        return workers_to_assign > available_working_spots
+
+    def get_upcoming_spots(self, game_state, player):
+        th_under_construction = game_state.player_units.filter(unit_type__in=[18, 132, 130], build_progress__lt=1)
+        r_under_construction = game_state.player_units.filter(unit_type__in=[20], build_progress__lt=1)
+
+        expansions_in_queue = list(filter(lambda a: isinstance(a, Expansion), player.actions_queue))
+        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, player.actions_queue))
+
+        orders = list(itertools.chain(*game_state.player_units.filter(unit_type=45).values('orders', flat_list=True)))
+        th_orders = list(filter(lambda o: o.ability_id == 318, orders))
+        ref_orders = list(filter(lambda o: o.ability_id == 320, orders))
+
+        th_spots = (len(th_under_construction) + len(expansions_in_queue) + len(th_orders)) * 16
+        ref_spots = (len(r_under_construction) + len(refineries_in_queue) + len(ref_orders)) * 3
+
+        return th_spots + ref_spots
+
+    def get_total_refineries(self, game_state, player):
+        refineries = game_state.player_units.filter(unit_type=UnitTypeIds.REFINERY.value)
+        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, player.actions_queue))
+        return len(refineries) + len(refineries_in_queue)
+
+    def get_total_ths(self, game_state, player):
+        ths = game_state.player_units.filter(unit_type__in=[18, 132, 130])
+        expansions_in_queue = list(filter(lambda a: isinstance(a, Expansion), player.actions_queue))
+        return len(ths) + len(expansions_in_queue)
+
+    def next_actions(self, game_state, player):
+        workers_to_assign = self.get_workers_to_assign(game_state)
+        available_spots = self.get_number_of_working_spots(game_state)
+        upcoming_spots = self.get_upcoming_spots(game_state, player)
+        workers_left_to_assign = len(workers_to_assign) - upcoming_spots + available_spots
+        if workers_left_to_assign <= 0:
+            return []
+
+        missing_expansions = 0
+        missing_refineries = self.get_total_ths(game_state, player) * 2 - self.get_total_refineries(game_state, player)
+        missing_refineries = missing_refineries if missing_refineries > 0 else 0
+        if missing_refineries * 3 < workers_left_to_assign:
+            missing_expansions = 1
+
+        return ([Build(UnitTypeIds.REFINERY.value)] * missing_refineries) + ([Expansion()] * missing_expansions)
 
 
 class RulesPlayer(ActionsPlayer):
@@ -204,7 +282,7 @@ class RulesPlayer(ActionsPlayer):
     def apply_actions(self, game_state, passing_rules):
         if passing_rules:
             self.actions_queue += reduce(
-                lambda action_list, rule: action_list + rule.next_actions(game_state),
+                lambda action_list, rule: action_list + rule.next_actions(game_state, self),
                 passing_rules,
                 []
             )
@@ -236,7 +314,7 @@ DEMO_RULES_1 = [
 ]
 
 
-DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(15)] + \
+DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(30)] + \
                        [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(2)] + \
                        [Build(UnitTypeIds.REFINERY.value)] + \
                        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)] + \
@@ -245,11 +323,8 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(15)] + \
                        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(4)] + \
                        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(4)] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYWEAPONSLEVEL1.value)] + \
+                       [Expansion()] + \
                        [Upgrade(UpgradeIds.TERRANINFANTRYARMORSLEVEL1.value)] + \
-                       [Expansion()] + \
-                       [Expansion()] + \
-                       [Expansion()] + \
-                       [Expansion()] + \
                        [Upgrade(UpgradeIds.SHIELDWALL.value)] + \
                        [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
 
@@ -264,6 +339,7 @@ DEMO_RULES_2 = [
     TerminateIdleUnits(None, None),
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
+    TooMuchWorkersExpansion(None, None),
     UnitsRule(
         {
             "alignment": "player",
@@ -279,8 +355,7 @@ DEMO_RULES_2 = [
             "query_params": {"unit_type": UnitTypeIds.COMMANDCENTER.value, "build_progress": 1},
             "evaluation": lambda units: len(units) > 1,
         },
-        [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + \
-        [Build(UnitTypeIds.REFINERY.value) for _ in range(2)],
+        [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)],
         burner=True,
     ),
     ActionsRule(
@@ -302,5 +377,5 @@ IDLE_RULES = [
     TerminateIdleUnits(None, None),
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
-    # Exterminate(None, None),
+    TooMuchWorkersExpansion(None, None),
 ]
