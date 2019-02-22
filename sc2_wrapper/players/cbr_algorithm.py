@@ -1,5 +1,6 @@
 import random
-from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side, UnitInfluenceArea, own_minerals_distance
+from api_wrapper.utils import obs_to_case, get_quadrant_position, get_quadrant_min_side, UnitInfluenceArea, \
+    own_minerals_distance, minerals_diff
 from constants.ability_ids import AbilityId
 from constants.build_abilities import BUILD_ABILITY_UNIT
 from constants.unit_data import UNIT_DATA
@@ -161,7 +162,7 @@ class CBRAlgorithm(RulesPlayer):
         won = case["wins"]
         count = case["games"]
         lost = case["looses"]
-        distance = own_minerals_distance(situation, case["observation"], game_data)
+        distance = minerals_diff(situation, case["observation"], game_data)
         #distance = 0
         case_eval = (count / (count + 10)) * ((count) / (count + lost)) * (1 / (1 + distance))
         # case_eval = 1 / (1 + distance)
@@ -281,7 +282,7 @@ class CBRAlgorithm(RulesPlayer):
             game_state.enemy_units.add_calculated_values(distance_to={"pos": target_point}),
             key=lambda unit: unit.last_distance_to,
         )
-        if closest_enemy.last_distance_to > get_quadrant_min_side(game_state):
+        if closest_enemy.last_distance_to > get_quadrant_min_side(game_state) / 2.:
             redefined_target_point = get_quadrant_position(closest_enemy, game_state)
             return redefined_target_point
         return target_point

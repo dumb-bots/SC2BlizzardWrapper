@@ -616,21 +616,72 @@ def get_unit_quadrant(unit):
 def get_situation_minerals(situation, game_data):
     minerals = situation["minerals"] * 100
     minerals += situation["vespene"] * VESPENE_TO_MINERALS * 100
+    minerals += situation_food_to_minerals(situation)
+    for upgrade in situation["upgrades"]:
+        minerals += upgrade_to_minerals(upgrade)
+    for unit in situation["units"]:
+        if unit["alliance"] == "Self":
+            minerals += unit_to_minerals(unit["type"], game_data)
+    return minerals
+
+
+def situation_food_to_minerals(situation):
     food = situation["food"] * SUPPLY_TO_MINERALS \
         if situation.get('food') is not None \
         else abs(situation['foodCap'] - situation['foodUsed'])
-    minerals += food * SUPPLY_TO_MINERALS
-    for upgrade in situation["upgrades"]:
-        minerals += UPGRADE_DATA[upgrade]["mineral_cost"]
-        minerals += UPGRADE_DATA[upgrade]["vespene_cost"] * VESPENE_TO_MINERALS
-    for unit in situation["units"]:
-        unit_data = game_data[unit["type"]]
-        if unit["alliance"] == "Self":
-            minerals += unit_data.mineral_cost
-            minerals += unit_data.vespene_cost * VESPENE_TO_MINERALS
-            minerals += unit_data.food_required * SUPPLY_TO_MINERALS
+    return food * SUPPLY_TO_MINERALS
+
+
+def unit_to_minerals(unit_type, game_data):
+    unit_data = game_data[unit_type]
+    minerals = unit_data.mineral_cost
+    minerals += unit_data.vespene_cost * VESPENE_TO_MINERALS
+    minerals += unit_data.food_required * SUPPLY_TO_MINERALS
+    return minerals
+
+
+def upgrade_to_minerals(upgrade):
+    minerals = UPGRADE_DATA[upgrade]["mineral_cost"]
+    minerals += UPGRADE_DATA[upgrade]["vespene_cost"] * VESPENE_TO_MINERALS
     return minerals
 
 
 def own_minerals_distance(case, situation, game_data):
     return abs(get_situation_minerals(case, game_data) - get_situation_minerals(situation, game_data))
+
+
+def minerals_diff(case, situation, game_data):
+    mineral_difference = abs(situation["minerals"] - case['minerals']) * 100
+    vespene_difference = abs(situation["vespene"] - case['vespene']) * VESPENE_TO_MINERALS * 100
+    food_difference = abs(situation_food_to_minerals(situation) - situation_food_to_minerals(case))
+    upgrades_difference = get_upgrade_minerals_difference(case, situation)
+    units_difference = get_units_minerals_difference(case, situation, game_data)
+    return mineral_difference + vespene_difference + food_difference + upgrades_difference + units_difference
+
+
+def get_upgrade_minerals_difference(case, situation):
+    difference = 0
+    common_upgrades = set(case['upgrades']) & set(situation['upgrades'])
+    for upgrade in [u for u in case['upgrades'] if u not in common_upgrades]:
+        difference += upgrade_to_minerals(upgrade)
+    for upgrade in [u for u in situation['upgrades'] if u not in common_upgrades]:
+        difference += upgrade_to_minerals(upgrade)
+    return difference
+
+
+def get_units_minerals_difference(case, situation, game_data):
+    difference = 0
+    case_units_group = group_units(case)
+    situation_units_group = group_units(situation)
+    for unit in set(case_units_group.keys()).union(situation_units_group.keys()):
+        amount_difference = abs(situation_units_group.get(unit, 0) - case_units_group.get(unit, 0))
+        difference = amount_difference * unit_to_minerals(unit, game_data)
+    return difference
+
+
+def group_units(situation):
+    group = {}
+    for unit in situation['units']:
+        unit_type = unit['type']
+        group[unit_type] = group.get(unit_type, 0) + 1
+    return group
