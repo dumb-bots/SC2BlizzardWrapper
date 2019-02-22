@@ -53,6 +53,11 @@ def plot_stats():
     print("Total cases: {}".format(len(a)))
     print("Grouped: {}".format(len(a) - a.count(1)))
     print("Proportion grouped: {0:.2f}%".format(100 * (len(a) - a.count(1)) / len(a)))
+    highest_grouped_case =  max(filter(lambda o: o['games'] > 1, observations), key=lambda o: o['observation']['loop'])
+    print("Highest grouped case in GL {} with {} games".format(
+        highest_grouped_case['observation']['loop'],
+        highest_grouped_case['games'])
+    )
     print("-----------------------------")
 
 
