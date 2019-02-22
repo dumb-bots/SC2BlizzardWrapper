@@ -13,17 +13,14 @@ from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_dependencies import UPGRADE_DEPENDENCIES
 from functools import reduce
 import math
-<<<<<<< HEAD
 from constants.upgrade_data import UPGRADE_DATA
 from constants.unit_data import UNIT_DATA
 QUADRANT_WIDTH = 33.5
 QUADRANT_HEIGHT = 35.5
 VESPENE_TO_MINERALS = 3.45
 SUPPLY_TO_MINERALS = 12.5
-=======
 
 from game_data.utils import euclidean_distance
->>>>>>> 38c15607b368337cdd177ff488926ffb39f9525e
 
 HARVESTING_ORDERS = [
     # SCV
