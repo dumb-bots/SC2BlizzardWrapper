@@ -115,6 +115,11 @@ class TerminateIdleUnits(UnitsRule):
         )]
 
 
+class Exterminate(TerminateIdleUnits):
+    def _match(self, game_state, player):
+        return game_state.game_loop > 30000
+
+
 class DefendIdleUnits(TerminateIdleUnits):
     def match_query_output(self, game_state):
         return get_closing_enemies(game_state)
@@ -297,4 +302,5 @@ IDLE_RULES = [
     TerminateIdleUnits(None, None),
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
+    # Exterminate(None, None),
 ]
