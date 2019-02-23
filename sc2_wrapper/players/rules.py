@@ -1,11 +1,13 @@
 import itertools
 from functools import reduce
 
-from api_wrapper.utils import get_closing_enemies
+from api_wrapper.utils import get_closing_enemies, MINERAL_FIELD_IDS
+from constants.ability_ids import AbilityId
 from constants.unit_type_ids import UnitTypeIds
 from constants.upgrade_ids import UpgradeIds
 from game_data.units import UnitManager
-from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion, DistributeHarvest
+from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attack, Expansion, DistributeHarvest, \
+    UnitAction
 
 
 class Rule:
@@ -118,7 +120,7 @@ class TerminateIdleUnits(UnitsRule):
 
 class Exterminate(TerminateIdleUnits):
     def _match(self, game_state, player):
-        return game_state.game_loop > 30000
+        return game_state.game_loop > 12000
 
 
 class DefendIdleUnits(TerminateIdleUnits):
@@ -137,6 +139,55 @@ class DefendIdleUnits(TerminateIdleUnits):
                 "action_pos": True,
             }
         )]
+
+
+class MuleRule(UnitsRule):
+    MULE_COST = 60
+
+    def match_query_output(self, game_state):
+        orbital_commands = game_state.player_units.filter(unit_type=UnitTypeIds.ORBITALCOMMAND.value)
+        return list(filter(lambda command: command.energy[0] > self.MULE_COST, orbital_commands))
+
+    def _match(self, game_state, player):
+        return self.match_query_output(game_state)
+
+    def next_actions(self, game_state, player):
+        actions = []
+        for orbital_command in self.match_query_output(game_state):
+            closest_mineral = game_state.neutral_units.filter(
+                unit_type__in=MINERAL_FIELD_IDS
+            ).add_calculated_values(
+                distance_to={"unit": orbital_command}
+            ).sort_by('last_distance_to')[0]
+
+            unit_group = {"query": {"tag": orbital_command.tag}}
+            target_unit = {"ids": [closest_mineral.tag]}
+            actions.append(UnitAction(
+                ability_id=AbilityId.EFFECT_CALLDOWNMULE.value, unit_group=unit_group, target_unit=target_unit)
+            )
+        return actions
+
+
+class ResourceRule(Rule):
+    def _match(self, game_state, player):
+        minerals = game_state.player_info.minerals > self.condition_parameters.get('minerals', 0)
+        vespene = game_state.player_info.vespene > self.condition_parameters.get('vespene', 0)
+        supply = game_state.player_info.food_cap < self.condition_parameters.get('supply', 0)
+        return minerals and vespene and supply and len(player.actions_queue) < 80
+
+
+class SupplyCapSafeguard(Rule):
+    def _match(self, game_state, player):
+        supply_remaining = game_state.player_info.food_cap - game_state.player_info.food_used
+        supply_depots_on_its_way = \
+            len(list(filter(lambda x: isinstance(x, Build) and x.unit_id == UnitTypeIds.SUPPLYDEPOT.value,
+                            player.actions_queue))) + \
+            len(game_state.player_units.filter(unit_type=UnitTypeIds.SUPPLYDEPOT.value, build_progress__lt=1))
+        supply_remaining += supply_depots_on_its_way * 8
+        return supply_remaining < 6 and game_state.player_info.food_cap < 200
+
+    def next_actions(self, game_state, player):
+        return [Build(UnitTypeIds.SUPPLYDEPOT.value)] * 2
 
 
 class IdleWorkersHarvest(UnitsRule):
@@ -314,11 +365,13 @@ DEMO_RULES_1 = [
 ]
 
 
-DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(30)] + \
+DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + \
+                       [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(3)] + \
                        [Build(UnitTypeIds.BARRACKSREACTOR.value) for _ in range(2)] + \
-                       [Build(UnitTypeIds.REFINERY.value)] + \
+                       [Build(UnitTypeIds.REFINERY.value)] * 2 + \
+                       [Build(UnitTypeIds.ORBITALCOMMAND.value)] + \
                        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(30)] + \
-                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(7)] + \
+                       [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(8)] + \
                        [Harvest({"composition": {UnitTypeIds.SCV.value: 3}}, Harvest.VESPENE)] + \
                        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(4)] + \
                        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(4)] + \
@@ -329,46 +382,41 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(30)] + \
                        [Upgrade(UpgradeIds.PUNISHERGRENADES.value)]
 
 DEMO_RULES_2 = [
-    ActionsRule(
-        {},
-        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(6)] +
-        [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(2)] +
-        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(1)]
+    ResourceRule(
+        {"minerals": 2000, "vespene": 700, "supply": 200},
+        [Train(UnitTypeIds.MARINE.value, 1) for _ in range(10)] +
+        [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] +
+        [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] +
+        [Train(UnitTypeIds.MEDIVAC.value, 1) for _ in range(2)]
     ),
     DefendIdleUnits(None, None),
     TerminateIdleUnits(None, None),
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
     TooMuchWorkersExpansion(None, None),
+    MuleRule(None, None),
     UnitsRule(
         {
             "alignment": "player",
-            "query_params": {"unit_type": UnitTypeIds.REFINERY.value, "build_progress": 1},
+            "query_params": {"unit_type__in": [18, 132, 130], "build_progress": 1},
             "evaluation": lambda units: len(units) > 1,
         },
-        [Harvest({"composition": {UnitTypeIds.SCV.value: 6}}, Harvest.VESPENE)],
+        [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + [Build(UnitTypeIds.ORBITALCOMMAND.value)] +
+        [Build(UnitTypeIds.BARRACKSREACTOR.value)] + [Build(UnitTypeIds.FACTORYTECHLAB.value)] +
+        [Build(UnitTypeIds.REFINERY.value)] * 2 + [Build(UnitTypeIds.SUPPLYDEPOT.value)] * 2,
         burner=True,
     ),
     UnitsRule(
         {
             "alignment": "player",
-            "query_params": {"unit_type": UnitTypeIds.COMMANDCENTER.value, "build_progress": 1},
-            "evaluation": lambda units: len(units) > 1,
+            "query_params": {"unit_type__in": [18, 132, 130], "build_progress": 1},
+            "evaluation": lambda units: len(units) > 2,
         },
-        [Train(UnitTypeIds.SCV.value, 1) for _ in range(10)],
+        [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + [Build(UnitTypeIds.ORBITALCOMMAND.value)],
         burner=True,
     ),
-    ActionsRule(
-        {},
-        [Attack(
-            {"query": {"unit_type__in": [48, 33, 54, 51]}},
-            target_unit={
-                "types": [UnitTypeIds.HATCHERY.value, UnitTypeIds.LAIR.value, UnitTypeIds.HIVE.value],
-                "alignment": "enemy",
-                "action_pos": True,
-            }
-        )]
-    )
+    Exterminate(None, None),
+    SupplyCapSafeguard(None, None),
 ]
 
 
@@ -378,4 +426,5 @@ IDLE_RULES = [
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
     TooMuchWorkersExpansion(None, None),
+    SupplyCapSafeguard(None, None),
 ]

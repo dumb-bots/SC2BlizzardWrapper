@@ -24,6 +24,7 @@ class UnitDestroyed(Exception):
 
 
 class Action:
+    MISSING_SPACE_IN_QUEUE = 'missing_space_in_queue'
     MISSING_DEPENDENCIES = 'missing_dependencies'
     MISSING_RESOURCES = 'missing_resources'
     READY = 'ready'
@@ -447,6 +448,15 @@ class Train(BuildingAction):
         # Rally point
         self.rally_point = rally_point
 
+    def determine_action_state(self, game_state, units_queue, upgrades_queue):
+        available_builders = UnitManager(get_available_building_unit(self.unit_id, game_state))
+        builder_orders = len(list(itertools.chain(*available_builders.values('orders', flat_list=True))))
+        no_space_in_queue = builder_orders >= 5 * len(available_builders)
+        if no_space_in_queue:
+            return Action.MISSING_SPACE_IN_QUEUE, []
+        else:
+            return super(Train, self).determine_action_state(game_state, units_queue, upgrades_queue)
+
     async def perform_action(self, ws, game_state):
         try:
             available_builders = get_available_building_unit(self.unit_id, game_state)
@@ -800,6 +810,7 @@ class ActionsPlayer(Player):
     def __init__(self):
         self.actions_queue = []
         self.pending_actions = []
+        self.discard_threshold = 15
 
     async def create(self, race, obj_type, difficulty=None, server=None, server_route=None, server_address=None,
                      **kwargs):
@@ -844,7 +855,7 @@ class ActionsPlayer(Player):
             if state == Action.READY:
                 success = await action.perform_action(ws, game_state)
                 if success != 1:
-                    if action.fail_counter < 5:
+                    if action.fail_counter < self.discard_threshold:
                         action.fail_counter += 1
                         remaining_actions.append(action)
                     else:

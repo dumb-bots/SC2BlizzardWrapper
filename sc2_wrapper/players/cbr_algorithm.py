@@ -18,6 +18,7 @@ class CBRAlgorithm(RulesPlayer):
             difficulty=None, server=None, server_route=None, server_address=None, cases=None,
             **kwargs
     ):
+        self.discard_threshold = 5
         self.cases = cases
         self.cases_by_loop = {}
         await super().create(race, obj_type,difficulty,server, server_route, server_address, **kwargs)
