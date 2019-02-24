@@ -120,7 +120,7 @@ class TerminateIdleUnits(UnitsRule):
 
 class Exterminate(TerminateIdleUnits):
     def _match(self, game_state, player):
-        return game_state.game_loop > 12000
+        return game_state.game_loop > 17000
 
 
 class DefendIdleUnits(TerminateIdleUnits):
