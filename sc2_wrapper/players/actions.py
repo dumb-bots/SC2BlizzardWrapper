@@ -452,7 +452,7 @@ class Train(BuildingAction):
         available_builders = UnitManager(get_available_building_unit(self.unit_id, game_state))
         builder_orders = len(list(itertools.chain(*available_builders.values('orders', flat_list=True))))
         no_space_in_queue = builder_orders >= 5 * len(available_builders)
-        if no_space_in_queue:
+        if available_builders and no_space_in_queue:
             return Action.MISSING_SPACE_IN_QUEUE, []
         else:
             return super(Train, self).determine_action_state(game_state, units_queue, upgrades_queue)
