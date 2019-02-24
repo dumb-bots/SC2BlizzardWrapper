@@ -383,7 +383,7 @@ DEMO_RULES_ACTIONS_2 = [Train(UnitTypeIds.SCV.value, 1) for _ in range(20)] + \
 
 DEMO_RULES_2 = [
     ResourceRule(
-        {"minerals": 2000, "vespene": 700, "supply": 200},
+        {"minerals": 1500, "vespene": 400, "supply": 200},
         [Train(UnitTypeIds.MARINE.value, 1) for _ in range(10)] +
         [Train(UnitTypeIds.MARAUDER.value, 1) for _ in range(5)] +
         [Train(UnitTypeIds.SIEGETANK.value, 1) for _ in range(2)] +
