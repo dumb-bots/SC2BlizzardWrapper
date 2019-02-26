@@ -1,9 +1,10 @@
 import json
+import math
 
 import matplotlib.pyplot as plt
 
 
-a = open('../observations.json', 'r')
+a = open('../observations_3.json', 'r')
 b = a.read()
 b = b.replace("'", '"')
 b = b.replace("ObjectId(", '')
@@ -40,13 +41,13 @@ def plot_stats():
     plt.show()
 
     # Plot games
-    plt.scatter(x3, y3, label='games per gameloop', s=1)
+    plt.scatter(x3, list(map(math.log, y3)), label='games per gameloop', s=1)
     plt.show()
 
     print("Attack / Actions stats ------------")
     print("Actions mean: {0:.2f}".format(sum(y2) / len(y2)))
     print("Attacks mean: {0:.2f}".format(sum(y1) / len(y1)))
-    print("Proportion: {0:.2f}".format((sum(y2) / len(y2)) / (sum(y1) / len(y1))))
+    print("Proportion: {0:.2f}".format((sum(y1) / len(y1)) / (sum(y2) / len(y2))))
 
     print("Aggregation stats ------------")
     a = [o['games'] for o in observations]

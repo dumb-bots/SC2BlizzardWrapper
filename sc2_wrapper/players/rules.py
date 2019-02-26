@@ -11,7 +11,8 @@ from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attac
 
 
 class Rule:
-    def __init__(self, condition_parameters, actions, burner=False):
+    def __init__(self, condition_parameters, actions, burner=False, high_priority=False):
+        self.high_priority = high_priority
         self.condition_parameters = condition_parameters
         self.actions = actions
         self.burner = burner
@@ -275,11 +276,12 @@ class TooMuchWorkersExpansion(OverWorkersHarvest):
         return workers_to_assign > available_working_spots
 
     def get_upcoming_spots(self, game_state, player):
+        orders_queue = player.actions_queue + player.high_priority_actions
         th_under_construction = game_state.player_units.filter(unit_type__in=[18, 132, 130], build_progress__lt=1)
         r_under_construction = game_state.player_units.filter(unit_type__in=[20], build_progress__lt=1)
 
-        expansions_in_queue = list(filter(lambda a: isinstance(a, Expansion), player.actions_queue))
-        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, player.actions_queue))
+        expansions_in_queue = list(filter(lambda a: isinstance(a, Expansion), orders_queue))
+        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, orders_queue))
 
         orders = list(itertools.chain(*game_state.player_units.filter(unit_type=45).values('orders', flat_list=True)))
         th_orders = list(filter(lambda o: o.ability_id == 318, orders))
@@ -291,13 +293,17 @@ class TooMuchWorkersExpansion(OverWorkersHarvest):
         return th_spots + ref_spots
 
     def get_total_refineries(self, game_state, player):
+        orders_queue = player.actions_queue + player.high_priority_actions
         refineries = game_state.player_units.filter(unit_type=UnitTypeIds.REFINERY.value)
-        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, player.actions_queue))
+        refineries_in_queue = list(filter(lambda a: isinstance(a, Build) and a.unit_id == 20, orders_queue))
         return len(refineries) + len(refineries_in_queue)
 
     def get_total_ths(self, game_state, player):
         ths = game_state.player_units.filter(unit_type__in=[18, 132, 130])
-        expansions_in_queue = list(filter(lambda a: isinstance(a, Expansion), player.actions_queue))
+        expansions_in_queue = list(filter(
+            lambda a: isinstance(a, Expansion),
+            player.actions_queue + player.high_priority_actions
+        ))
         return len(ths) + len(expansions_in_queue)
 
     def next_actions(self, game_state, player):
@@ -332,11 +338,12 @@ class RulesPlayer(ActionsPlayer):
 
     def apply_actions(self, game_state, passing_rules):
         if passing_rules:
-            self.actions_queue += reduce(
-                lambda action_list, rule: action_list + rule.next_actions(game_state, self),
-                passing_rules,
-                []
-            )
+            for rule in passing_rules:
+                rule_actions = rule.next_actions(game_state, self)
+                if rule.high_priority:
+                    self.high_priority_actions += rule_actions
+                else:
+                    self.actions_queue += rule_actions
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
         passing_rules = [rule for rule in self.rules if rule.match(game_state, self)]
@@ -425,6 +432,6 @@ IDLE_RULES = [
     TerminateIdleUnits(None, None),
     IdleWorkersHarvest(None, None),
     OverWorkersHarvest(None, None),
-    TooMuchWorkersExpansion(None, None),
+    TooMuchWorkersExpansion(None, None, high_priority=True),
     SupplyCapSafeguard(None, None),
 ]

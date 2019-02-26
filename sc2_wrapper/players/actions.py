@@ -808,6 +808,7 @@ class Upgrade(UnitAction):
 
 class ActionsPlayer(Player):
     def __init__(self):
+        self.high_priority_actions = []
         self.actions_queue = []
         self.pending_actions = []
         self.discard_threshold = 15
@@ -818,9 +819,9 @@ class ActionsPlayer(Player):
         await super().create(race, obj_type, difficulty, server, server_route, server_address, **kwargs)
         self.actions_queue = kwargs.get('actions', [])
 
-    def get_required_actions(self, game_state):
+    def get_required_actions(self, game_state, actions_queue):
         # Check remaining orders
-        if len(self.actions_queue) < 1:
+        if len(actions_queue) < 1:
             print("Ran out of actions")
             return []
 
@@ -828,7 +829,7 @@ class ActionsPlayer(Player):
         actions_and_dependencies = []
 
         # Iterate over current actions
-        for action in self.actions_queue:
+        for action in actions_queue:
 
             # Get action state
             action_state, required_actions = action.determine_action_state(
@@ -867,10 +868,20 @@ class ActionsPlayer(Player):
         return remaining_actions
 
     async def process_step(self, ws, game_state, raw=None, actions=None):
-        new_actions = self.get_required_actions(game_state)
-        self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
-        print(new_actions)
-        print("{} actions in queue".format(len(new_actions)))
+        if self.high_priority_actions:
+            new_actions = self.get_required_actions(game_state, self.high_priority_actions)
+            self.high_priority_actions = await self.perform_ready_actions(ws, new_actions, game_state)
+            print("Processing high priority queue")
+            print("High priority Actions: {}".format(new_actions))
+            print("Unit actions: {}".format(self.actions_queue))
+        else:
+            new_actions = self.get_required_actions(game_state, self.actions_queue)
+            self.actions_queue = await self.perform_ready_actions(ws, new_actions, game_state)
+            print("Processing standard priority queue")
+            print("High priority Actions: {}".format(self.high_priority_actions))
+            print("Unit actions: {}".format(new_actions))
+        print("{} actions in queue".format(len(self.actions_queue)))
+        print("{} actions in high priority queue".format(len(self.high_priority_actions)))
         print("Supplies Log -------------------------")
         print("Food {}/{}".format(game_state.player_info.food_used, game_state.player_info.food_cap))
         print("Minerals {} - Harvesting: {}".format(game_state.player_info.minerals, ", ".join(mineral_stats(game_state))))
