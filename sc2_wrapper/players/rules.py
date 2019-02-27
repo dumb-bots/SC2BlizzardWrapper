@@ -11,8 +11,8 @@ from players.actions import ActionsPlayer, Train, Harvest, Upgrade, Build, Attac
 
 
 class Rule:
-    def __init__(self, condition_parameters, actions, burner=False, high_priority=False):
-        self.high_priority = high_priority
+    def __init__(self, condition_parameters, actions, burner=False, queue='actions'):
+        self.queue_selector = queue
         self.condition_parameters = condition_parameters
         self.actions = actions
         self.burner = burner
@@ -340,8 +340,13 @@ class RulesPlayer(ActionsPlayer):
         if passing_rules:
             for rule in passing_rules:
                 rule_actions = rule.next_actions(game_state, self)
-                if rule.high_priority:
+                if rule.queue_selector == 'high':
                     self.high_priority_actions += rule_actions
+                elif rule.queue_selector == 'active':
+                    if self.high_priority_actions:
+                        self.high_priority_actions += rule_actions
+                    else:
+                        self.actions_queue += rule_actions
                 else:
                     self.actions_queue += rule_actions
 
@@ -428,10 +433,10 @@ DEMO_RULES_2 = [
 
 
 IDLE_RULES = [
-    DefendIdleUnits(None, None),
+    TooMuchWorkersExpansion(None, None, queue='high'),
+    DefendIdleUnits(None, None, queue='active'),
     TerminateIdleUnits(None, None),
-    IdleWorkersHarvest(None, None),
-    OverWorkersHarvest(None, None),
-    TooMuchWorkersExpansion(None, None, high_priority=True),
+    IdleWorkersHarvest(None, None, queue='active'),
+    OverWorkersHarvest(None, None, queue='active'),
     SupplyCapSafeguard(None, None),
 ]
